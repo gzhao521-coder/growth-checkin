@@ -51,7 +51,7 @@
 
     const LS_KEY = 'myCheckinApp_v10';
     // 单一版本号来源：诊断信息、备份 payload、sw.js 的 CACHE_NAME 都应对齐这里
-    const APP_VERSION = 'v112';
+    const APP_VERSION = 'v113';
     const CURRENT_SCHEMA_VERSION = 1;
     // 存储安全状态。必须在 `let data = loadData();` 之前初始化：
     // loadData / saveData / validateAndRepairData 都会用到它们，放在后面会踩暂时性死区（TDZ）直接报错。
@@ -982,6 +982,11 @@
         data.modules.supplements.items = validSupps;
         repaired = true;
       }
+      // 补剂清单升级检查：每次启动都跑一次（内部有 listVersion 判断，已是最新则立即返回）。
+      // 注意不能只在 runMigrations 的 V0→V1 里调——schemaVersion 已到 1 的老用户会永远走不到那里，
+      // 导致清单版本号升级后（新增/改时段/改文案）老数据收不到更新。
+      // 不置 repaired：迁移走函数结尾的 supplementsMigrated 静默保存通道，避免误弹"数据异常"告警。
+      migrateSupplementList(data);
       if (!data.modules.body || !Array.isArray(data.modules.body.records)) {
         data.modules.body = { records: [] };
         repaired = true;
