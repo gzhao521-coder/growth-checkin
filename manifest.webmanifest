@@ -1,0 +1,25 @@
+{
+  "name": "成长 — 习惯打卡与财务管理",
+  "short_name": "成长",
+  "description": "每日习惯打卡、周期任务、财务管理与基金追踪",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0f0f23",
+  "theme_color": "#0f0f23",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

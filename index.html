@@ -1,0 +1,776 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#0f0f23">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="成长">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="application-name" content="成长">
+  <meta name="msapplication-TileColor" content="#0f0f23">
+  <meta name="msapplication-navbutton-color" content="#0f0f23">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <link rel="icon" type="image/png" href="icon-192.png">
+  <link rel="manifest" href="manifest.webmanifest">
+  <title>成长</title>
+  <link rel="stylesheet" href="assets/app.css">
+</head>
+<body>
+  <div class="splash-screen" id="splashScreen" aria-hidden="true">
+    <div class="splash-backdrop">
+      <div class="splash-sweep"></div>
+      <div class="splash-stars">
+        <span style="left:12%;top:18%"></span>
+        <span style="left:78%;top:14%"></span>
+        <span style="left:86%;top:62%"></span>
+        <span style="left:16%;top:72%"></span>
+        <span style="left:68%;top:84%"></span>
+        <span style="left:34%;top:10%"></span>
+      </div>
+    </div>
+    <div class="splash-mark">
+      <div class="splash-ring"></div>
+      <div class="splash-ring second"></div>
+      <div class="splash-ring third"></div>
+      <span class="splash-orbit one"></span>
+      <span class="splash-orbit two"></span>
+      <div class="splash-core">升</div>
+      <span class="splash-spark one"></span>
+      <span class="splash-spark two"></span>
+      <span class="splash-spark three"></span>
+      <span class="splash-spark four"></span>
+    </div>
+    <div class="splash-title">成长，升级，快乐。</div>
+    <div class="splash-sub">你的每一步都算数</div>
+    <div class="splash-bar"><i></i></div>
+  </div>
+  <div class="orb orb-1"></div>
+  <div class="orb orb-2"></div>
+  <div class="orb orb-3"></div>
+  <div class="grid-bg"></div>
+  <div class="bg-mesh"></div>
+  <div class="bg-swirl"></div>
+  <div class="bg-particles" id="starDustWrap" aria-hidden="true"></div>
+
+  <header>
+    <div class="header-brand">
+      <h1>成长，升级，快乐。</h1>
+      <div class="date" id="todayDate"></div>
+    </div>
+    <div class="header-actions">
+      <span id="weatherWidget" class="weather-widget" onclick="updateWeather()" title="点击刷新天气">🌤 --°</span>
+      <span id="netStatus" class="net-status">•••</span>
+      <button class="header-menu-btn" onclick="openHeaderMenu()" title="更多工具" aria-label="更多工具">☰</button>
+    </div>
+  </header>
+
+  <div class="container" role="main">
+    <div id="dailyHero" class="daily-hero">
+      <div class="daily-hero-main">
+        <div class="daily-greeting" id="dailyGreeting"></div>
+        <div class="daily-quote" id="dailyQuote"></div>
+        <div class="daily-meta">
+          <span>连续坚持 <b id="overallStreak">0</b> 天</span>
+          <span>今日完成 <b id="heroDone">0/0</b></span>
+        </div>
+      </div>
+      <div class="daily-hero-ring" id="heroRing"><span id="heroPct">0%</span></div>
+    </div>
+
+    <div id="dailyTips" class="daily-tips"></div>
+
+    <div class="stats" id="statsBox">
+      <div class="stat-card">
+        <div class="icon-wrap">📋</div>
+        <div class="num" id="sTotal">0</div>
+        <div class="label">目标总数</div>
+      </div>
+      <div class="stat-card">
+        <div class="icon-wrap">✅</div>
+        <div class="num" id="sDone">0</div>
+        <div class="label">今日完成</div>
+      </div>
+      <div class="stat-card">
+        <div class="icon-wrap">📈</div>
+        <div class="num" id="sRate">0%</div>
+        <div class="label">完成率</div>
+      </div>
+    </div>
+
+    <div id="moduleContent"></div>
+  </div>
+
+  <div id="updateBanner" class="update-banner" style="display:none">
+    <span>发现新版本，请刷新</span>
+    <button onclick="location.reload(true)">刷新</button>
+  </div>
+
+  <div id="achievementToast" class="achievement-toast" style="display:none"></div>
+
+  <div id="lockOverlay" class="lock-overlay" style="display:none">
+    <div class="lock-box">
+      <div class="lock-icon">🔒</div>
+      <input type="password" id="lockPinInput" inputmode="numeric" aria-label="PIN 码" maxlength="6" placeholder="输入 4-6 位 PIN">
+      <button onclick="unlockApp()">解锁</button>
+      <div class="lock-hint">应用已启用 PIN 保护</div>
+    </div>
+  </div>
+
+  <div id="undoBar" class="undo-bar" style="display:none">
+    <span id="undoText">已删除</span>
+    <button onclick="undoLastDelete()">撤销</button>
+  </div>
+
+  <nav class="bottom-nav" role="navigation" aria-label="底部导航">
+    <div class="nav-items" id="navItems"></div>
+  </nav>
+
+  <div class="overlay" id="navMoreOverlay" onclick="closeNavMore(event)">
+    <div class="modal nav-more-modal" role="dialog" aria-modal="true"onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <h3>全部模块</h3>
+        <button class="close" aria-label="关闭" onclick="closeNavMore()">&times;</button>
+      </div>
+      <div class="nav-more-grid" id="navMoreGrid"></div>
+    </div>
+  </div>
+
+  <div class="overlay" id="headerMenuOverlay" onclick="closeHeaderMenu(event)">
+    <div class="modal header-menu-modal" role="dialog" aria-modal="true"onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <h3>工具菜单</h3>
+        <button class="close" aria-label="关闭" onclick="closeHeaderMenu()">&times;</button>
+      </div>
+      <div class="header-menu-grid">
+        <button class="header-menu-item" onclick="closeHeaderMenu(); forceRefresh()"><span class="header-menu-icon">🔄</span><span>刷新</span></button>
+        <button class="header-menu-item" onclick="closeHeaderMenu(); toggleBgMotion()"><span class="header-menu-icon">🌌</span><span>背景动态</span></button>
+        <button class="header-menu-item" onclick="closeHeaderMenu(); openPersonalizeModal()"><span class="header-menu-icon">🎨</span><span>个性化</span></button>
+        <button class="header-menu-item" onclick="closeHeaderMenu(); openBackupModal()"><span class="header-menu-icon">💾</span><span>备份</span></button>
+        <button class="header-menu-item" onclick="closeHeaderMenu(); openStatsModal()"><span class="header-menu-icon">📊</span><span>统计</span></button>
+        <button class="header-menu-item" onclick="closeHeaderMenu(); openWeeklyReport()"><span class="header-menu-icon">📅</span><span>周报</span></button>
+        <button class="header-menu-item" onclick="closeHeaderMenu(); openCalendarOverviewModal()"><span class="header-menu-icon">📅</span><span>总览</span></button>
+        <button class="header-menu-item" onclick="closeHeaderMenu(); openReminderModal()"><span class="header-menu-icon">🔔</span><span>提醒</span></button>
+        <button class="header-menu-item" onclick="closeHeaderMenu(); openAchievementsModal()"><span class="header-menu-icon">🏆</span><span>成就</span></button>
+        <button class="header-menu-item" onclick="closeHeaderMenu(); openPinModal()"><span class="header-menu-icon">🔒</span><span>锁</span></button>
+        <button class="header-menu-item" onclick="closeHeaderMenu(); showDiagnostics()"><span class="header-menu-icon">🔍</span><span>诊断</span></button>
+      </div>
+    </div>
+  </div>
+
+  <div class="overlay" id="overlay" onclick="closeModal(event)">
+    <div class="modal" role="dialog" aria-modal="true"onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <h3 id="modalTitle">打卡记录</h3>
+        <button class="close" aria-label="关闭" onclick="closeModal()">&times;</button>
+      </div>
+      <div class="calendar" id="calendar"></div>
+    </div>
+  </div>
+
+  <div class="overlay" id="noteOverlay" onclick="closeNoteModal(event)">
+    <div class="modal wide" role="dialog" aria-modal="true"onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <h3 id="noteModalTitle">记录数据</h3>
+        <button class="close" aria-label="关闭" onclick="closeNoteModal()">&times;</button>
+      </div>
+      <p style="font-size:13px;color:var(--text2);margin-bottom:12px;">记录本次打卡的相关数据或备注：</p>
+      <textarea class="note-input" id="noteInput" placeholder="输入数据..."></textarea>
+      <div class="modal-actions">
+        <button class="btn-secondary" onclick="closeNoteModal()">取消</button>
+        <button class="btn-primary" onclick="confirmNote()">确认打卡</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="overlay" id="fuelOverlay" onclick="closeFuelModal(event)">
+    <div class="modal wide" role="dialog" aria-modal="true"onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <h3>⛽ 加油记录</h3>
+        <button class="close" aria-label="关闭" onclick="closeFuelModal()">&times;</button>
+      </div>
+      <div class="body-form-row">
+        <label>加油日期</label>
+        <input type="date" class="fund-form-input" id="fuelDate">
+      </div>
+      <div class="body-form-row">
+        <div class="form-grid">
+          <div>
+            <label>加油时间</label>
+            <input type="time" class="fund-form-input" id="fuelTime">
+          </div>
+          <div>
+            <label>加油量（升）</label>
+            <input type="number" class="fund-form-input" id="fuelLiters" min="0" step="0.01" placeholder="如：45.6">
+          </div>
+        </div>
+      </div>
+      <div class="body-form-row">
+        <label>本次加油后一共走了多远（公里）</label>
+        <input type="number" class="fund-form-input" id="fuelDistance" min="0" step="0.1" placeholder="如：520">
+      </div>
+      <div class="modal-actions">
+        <button class="btn-secondary" id="fuelDeleteBtn" onclick="deleteFuelRecord()" style="display:none">取消本次记录</button>
+        <button class="btn-secondary" onclick="closeFuelModal()">取消</button>
+        <button class="btn-primary" onclick="saveFuelRecord()">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="overlay" id="makeupOverlay" onclick="closeMakeupModal(event)">
+    <div class="modal" role="dialog" aria-modal="true"onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <h3>↩ 补卡</h3>
+        <button class="close" aria-label="关闭" onclick="closeMakeupModal()">&times;</button>
+      </div>
+      <input type="hidden" id="makeupHabitId">
+      <input type="hidden" id="makeupModuleId">
+      <div class="reminder-row">
+        <label>补卡日期</label>
+        <input type="date" class="fund-form-input" id="makeupDate">
+      </div>
+      <div class="reminder-row">
+        <label>备注（可选）</label>
+        <textarea class="note-input" id="makeupNote" placeholder="例如：当天太忙忘记打卡，事后补记..." style="min-height:80px;margin-bottom:0"></textarea>
+      </div>
+      <div class="modal-actions">
+        <button class="btn-secondary" onclick="closeMakeupModal()">取消</button>
+        <button class="btn-primary" onclick="saveMakeupRecord()">确认补卡</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 目标设置弹窗 -->
+  <div class="overlay" id="targetOverlay" onclick="closeTargetModal(event)">
+    <div class="modal" role="dialog" aria-modal="true"onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <h3>🎯 目标与预算</h3>
+        <button class="close" aria-label="关闭" onclick="closeTargetModal()">&times;</button>
+      </div>
+      <p style="font-size:13px;color:var(--text2);margin-bottom:8px">设定你的存款目标金额：</p>
+      <input type="number" class="money-input" id="targetInput" placeholder="输入目标金额" min="0" step="0.01">
+      <p style="font-size:13px;color:var(--text2);margin-bottom:8px">设置本月支出预算（0 表示不限制）：</p>
+      <input type="number" class="money-input" id="budgetInput" placeholder="输入本月预算" min="0" step="0.01">
+      <input type="text" class="note-input" id="targetNoteInput" placeholder="目标备注（如：买房首付、旅游基金...）" style="min-height:44px;margin-bottom:16px">
+      <div class="modal-actions">
+        <button class="btn-secondary" onclick="closeTargetModal()">取消</button>
+        <button class="btn-primary" onclick="saveTarget()">保存目标</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 显化记录添加弹窗 -->
+  <div class="overlay" id="manifestRecordOverlay" onclick="closeManifestRecordModal(event)">
+    <div class="modal wide" role="dialog" aria-modal="true"onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <h3>✨ 添加显化记录</h3>
+        <button class="close" aria-label="关闭" onclick="closeManifestRecordModal()">&times;</button>
+      </div>
+      <div class="fund-form-row">
+        <label>日期</label>
+        <input type="date" class="fund-form-input" id="manifestRecordDate">
+      </div>
+      <div class="fund-form-row">
+        <label>显化感受 / 肯定语</label>
+        <textarea class="note-input" id="manifestRecordContent" placeholder="写下你今天的显化感受、肯定语或可视化内容..." style="min-height:60px;margin-bottom:0"></textarea>
+      </div>
+      <div class="fund-form-row">
+        <label>接收到的迹象（可选）</label>
+        <input type="text" class="fund-form-input" id="manifestRecordSigns" placeholder="如：看到了天使数字、遇到了巧合...">
+      </div>
+      <div class="fund-form-row">
+        <label>感恩内容（可选）</label>
+        <input type="text" class="fund-form-input" id="manifestRecordGratitude" placeholder="感谢宇宙、感谢自己...">
+      </div>
+      <div class="modal-actions">
+        <button class="btn-secondary" onclick="closeManifestRecordModal()">取消</button>
+        <button class="btn-primary" onclick="saveManifestRecord()">保存记录</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 诊断弹窗 -->
+  <div class="overlay" id="diagOverlay" onclick="if(event.target===this)this.classList.remove('show')">
+    <div class="modal wide" role="dialog" aria-modal="true"onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <h3>🔍 数据诊断</h3>
+        <button class="close" aria-label="关闭" onclick="document.getElementById('diagOverlay').classList.remove('show')">&times;</button>
+      </div>
+      <pre id="diagContent" style="font-size:12px;color:var(--text);background:rgba(0,0,0,0.3);padding:12px;border-radius:8px;max-height:300px;overflow-y:auto;white-space:pre-wrap;word-break:break-all"></pre>
+      <div class="modal-actions">
+        <button class="btn-secondary" onclick="document.getElementById('diagOverlay').classList.remove('show')">关闭</button>
+        <button class="btn-primary" onclick="resetAllData()" style="background:linear-gradient(135deg,var(--danger),#ff9f43)">⚠️ 重置所有数据</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 备份与恢复弹窗 -->
+  <div class="overlay" id="backupOverlay" onclick="closeBackupModal(event)">
+    <div class="modal wide" role="dialog" aria-modal="true"onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <h3>💾 备份与恢复</h3>
+        <button class="close" aria-label="关闭" onclick="closeBackupModal()">&times;</button>
+      </div>
+      <input type="file" id="backupFileInput" accept=".json,application/json" style="display:none" onchange="importBackupFile(event)">
+      <div class="backup-section">
+        <div class="backup-section-title">手动备份</div>
+        <div class="backup-actions">
+          <button class="backup-btn primary" onclick="exportBackup()">📤 导出备份</button>
+          <button class="backup-btn" onclick="document.getElementById('backupFileInput').click()">📥 导入备份</button>
+          <button class="backup-btn" onclick="copyBackupToClipboard()">📋 复制备份文本</button>
+          <button class="backup-btn" onclick="pasteBackupFromClipboard()">📋 从剪贴板导入</button>
+        </div>
+        <p class="backup-hint">导出 JSON 保存到手机或电脑，也可以复制备份文本发到微信/文件传输助手，换设备时粘贴导入。</p>
+      </div>
+      <div class="backup-section">
+        <div class="backup-section-title">🔒 加密备份（更安全）</div>
+        <div class="backup-actions">
+          <button class="backup-btn primary" onclick="exportEncryptedBackup()">🔐 导出加密备份</button>
+          <button class="backup-btn" onclick="document.getElementById('encryptedBackupFileInput').click()">🔓 导入加密备份</button>
+        </div>
+        <input type="file" id="encryptedBackupFileInput" accept=".bin,.enc" style="display:none" onchange="importEncryptedBackupFile(event)">
+        <p class="backup-hint">加密备份需要设置密码，数据以二进制格式保存，即使文件被他人获取也无法读取内容。</p>
+      </div>
+      <div class="backup-section">
+        <div class="backup-section-title">删除 / 重置前自动备份</div>
+        <div id="autoBackupList" class="backup-list"></div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn-secondary" onclick="closeBackupModal()">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 通用编辑弹窗 -->
+  <div class="overlay" id="editOverlay" onclick="closeEditModal(event)">
+    <div class="modal wide" role="dialog" aria-modal="true"onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <h3 id="editModalTitle">编辑</h3>
+        <button class="close" aria-label="关闭" onclick="closeEditModal()">&times;</button>
+      </div>
+      <div id="editFormFields"></div>
+      <div class="modal-actions">
+        <button class="btn-secondary" onclick="closeEditModal()">取消</button>
+        <button class="btn-primary" onclick="saveEditModal()">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 统计弹窗 -->
+  <div class="overlay" id="statsOverlay" onclick="closeStatsModal(event)">
+    <div class="modal wide" role="dialog" aria-modal="true"onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <h3>📊 打卡统计</h3>
+        <button class="close" aria-label="关闭" onclick="closeStatsModal()">&times;</button>
+      </div>
+      <div class="stats-range-tabs">
+        <button class="stats-range-btn active" data-range="1" onclick="setStatsRange(1)">今日</button>
+        <button class="stats-range-btn" data-range="7" onclick="setStatsRange(7)">近7日</button>
+        <button class="stats-range-btn" data-range="30" onclick="setStatsRange(30)">近30日</button>
+        <button class="stats-range-btn" data-range="365" onclick="setStatsRange(365)">近365日</button>
+      </div>
+      <div class="report-actions">
+        <button class="report-btn" onclick="exportReportCSV(statsRange)">📄 导出CSV</button>
+        <button class="report-btn" onclick="copyStatsReport()">📋 复制报告</button>
+      </div>
+      <div class="stats-chart-section">
+        <div class="stats-chart-title">📈 全局成长评分</div>
+        <canvas class="stats-chart" id="statsGrowthChart"></canvas>
+      </div>
+      <div class="stats-chart-section">
+        <div class="stats-chart-title">✅ 打卡完成率</div>
+        <canvas class="stats-chart" id="statsCheckinChart"></canvas>
+      </div>
+      <div class="stats-chart-section">
+        <div class="stats-chart-title">💊 补剂服用率</div>
+        <canvas class="stats-chart" id="statsSupplementChart"></canvas>
+      </div>
+      <div class="stats-chart-section">
+        <div class="stats-chart-title">✨ 显化记录数</div>
+        <canvas class="stats-chart" id="statsManifestChart"></canvas>
+      </div>
+      <div class="modal-actions">
+        <button class="btn-secondary" onclick="closeStatsModal()">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 每周复盘弹窗 -->
+  <div class="overlay" id="weeklyOverlay" onclick="closeWeeklyReport(event)">
+    <div class="modal wide" role="dialog" aria-modal="true"onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <h3>📅 每周复盘</h3>
+        <button class="close" aria-label="关闭" onclick="closeWeeklyReport()">&times;</button>
+      </div>
+      <div id="weeklyReportContent"></div>
+      <div class="modal-actions">
+        <button class="btn-secondary" onclick="closeWeeklyReport()">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 个性化弹窗 -->
+  <div class="overlay" id="personalizeOverlay" onclick="closePersonalizeModal(event)">
+    <div class="modal wide" role="dialog" aria-modal="true"onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <h3>🎨 视觉与个性化</h3>
+        <button class="close" aria-label="关闭" onclick="closePersonalizeModal()">&times;</button>
+      </div>
+      <div id="personalizeContent"></div>
+      <div class="modal-actions">
+        <button class="btn-secondary" onclick="closePersonalizeModal()">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 日历总览弹窗 -->
+  <div class="overlay" id="calendarOverlay" onclick="closeCalendarOverviewModal(event)">
+    <div class="modal wide" role="dialog" aria-modal="true"onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <h3>📅 日历总览</h3>
+        <button class="close" aria-label="关闭" onclick="closeCalendarOverviewModal()">&times;</button>
+      </div>
+      <div class="calendar-nav">
+        <button class="calendar-nav-btn" onclick="changeCalendarMonth(-1)">‹</button>
+        <span id="calendarOverviewMonth"></span>
+        <button class="calendar-nav-btn" onclick="changeCalendarMonth(1)">›</button>
+      </div>
+      <div id="calendarOverviewBody"></div>
+      <div class="calendar-legend">
+        <span><span class="legend-dot check"></span> 打卡</span>
+        <span><span class="legend-dot supp"></span> 补剂</span>
+        <span><span class="legend-dot mani"></span> 显化</span>
+      </div>
+      <div class="modal-actions">
+        <button class="btn-secondary" onclick="closeCalendarOverviewModal()">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 每日提醒弹窗 -->
+  <div class="overlay" id="reminderOverlay" onclick="closeReminderModal(event)">
+    <div class="modal" role="dialog" aria-modal="true"onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <h3>🔔 每日提醒</h3>
+        <button class="close" aria-label="关闭" onclick="closeReminderModal()">&times;</button>
+      </div>
+      <div class="reminder-row">
+        <label>打卡提醒时间</label>
+        <input type="time" class="fund-form-input" id="reminderCheckinTime" value="09:00">
+      </div>
+      <div class="reminder-row">
+        <label>早晨补剂提醒</label>
+        <input type="time" class="fund-form-input" id="reminderMorningTime" value="08:30">
+      </div>
+      <div class="reminder-row">
+        <label>中午补剂提醒</label>
+        <input type="time" class="fund-form-input" id="reminderNoonTime" value="12:30">
+      </div>
+      <div class="reminder-row">
+        <label>晚上补剂提醒</label>
+        <input type="time" class="fund-form-input" id="reminderEveningTime" value="20:00">
+      </div>
+      <div class="reminder-row">
+        <label>运动后补剂提醒</label>
+        <input type="time" class="fund-form-input" id="reminderWorkoutTime" value="18:30">
+      </div>
+      <div class="reminder-row">
+        <label class="switch-label"><input type="checkbox" id="reminderEnabled"> 开启每日提醒</label>
+      </div>
+      <div class="reminder-row">
+        <label class="switch-label"><input type="checkbox" id="reminderSmartMode" checked> 只提醒未完成项目</label>
+      </div>
+      <p class="reminder-hint">提醒在应用打开时生效；真正的后台推送需要服务器支持。</p>
+      <div class="modal-actions">
+        <button class="btn-secondary" onclick="closeReminderModal()">取消</button>
+        <button class="btn-primary" onclick="saveReminderSettings()">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="overlay" id="pinOverlay" onclick="closePinModal(event)">
+    <div class="modal" role="dialog" aria-modal="true"onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <h3>🔒 PIN 保护</h3>
+        <button class="close" aria-label="关闭" onclick="closePinModal()">&times;</button>
+      </div>
+      <div class="reminder-row">
+        <label>当前 PIN（未设置则留空）</label>
+        <input type="password" class="fund-form-input" id="pinCurrent" inputmode="numeric" maxlength="6" placeholder="4-6 位数字">
+      </div>
+      <div class="reminder-row">
+        <label>新 PIN（留空并确认则关闭锁定）</label>
+        <input type="password" class="fund-form-input" id="pinNew" inputmode="numeric" maxlength="6" placeholder="4-6 位数字">
+      </div>
+      <div class="reminder-row">
+        <label>确认新 PIN</label>
+        <input type="password" class="fund-form-input" id="pinConfirm" inputmode="numeric" maxlength="6" placeholder="再次输入">
+      </div>
+      <div class="modal-actions">
+        <button class="btn-secondary" onclick="closePinModal()">取消</button>
+        <button class="btn-primary" onclick="savePinSettings()">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 成就弹窗 -->
+  <div class="overlay" id="achievementsOverlay" onclick="closeAchievementsModal(event)">
+    <div class="modal wide" role="dialog" aria-modal="true"onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <h3>🏆 打卡成就</h3>
+        <button class="close" aria-label="关闭" onclick="closeAchievementsModal()">&times;</button>
+      </div>
+      <div id="achievementsList" class="achievements-list"></div>
+      <div class="modal-actions">
+        <button class="btn-secondary" onclick="closeAchievementsModal()">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 交易记录弹窗 -->
+  <div class="overlay" id="txOverlay" onclick="closeTxModal(event)">
+    <div class="modal" role="dialog" aria-modal="true"onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <h3 id="txModalTitle">记录收支</h3>
+        <button class="close" aria-label="关闭" onclick="closeTxModal()">&times;</button>
+      </div>
+      <input type="hidden" id="txType" value="income">
+      <p style="font-size:13px;color:var(--text2);margin-bottom:8px">分类：</p>
+      <select class="fund-form-input" id="txCategory" style="margin-bottom:12px"></select>
+      <p style="font-size:13px;color:var(--text2);margin-bottom:8px">金额：</p>
+      <input type="number" class="money-input" id="txAmount" placeholder="0.00" min="0.01" step="0.01">
+      <p style="font-size:13px;color:var(--text2);margin-bottom:8px">备注（可选）：</p>
+      <input type="text" class="note-input" id="txNote" placeholder="如：工资、奖金、餐饮、交通..." style="min-height:44px;margin-bottom:16px">
+      <div class="modal-actions">
+        <button class="btn-secondary" onclick="closeTxModal()">取消</button>
+        <button class="btn-primary" onclick="saveTransaction()">确认</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 存款资产弹窗 -->
+  <div class="overlay" id="depositOverlay" onclick="closeDepositModal(event)">
+    <div class="modal" role="dialog" aria-modal="true" onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <h3 id="depModalTitle">添加存款</h3>
+        <button class="close" aria-label="关闭" onclick="closeDepositModal()">&times;</button>
+      </div>
+      <input type="hidden" id="depId">
+      <p style="font-size:13px;color:var(--text2);margin-bottom:8px">产品名称：</p>
+      <input type="text" class="note-input" id="depName" placeholder="如：超长期特别国债（30年期）" style="min-height:44px;margin-bottom:12px">
+      <p style="font-size:13px;color:var(--text2);margin-bottom:8px">银行 / 渠道：</p>
+      <input type="text" class="note-input" id="depBank" placeholder="如：工商银行" style="min-height:44px;margin-bottom:12px">
+      <p style="font-size:13px;color:var(--text2);margin-bottom:8px">金额（万元）：</p>
+      <input type="number" class="money-input" id="depAmountWan" placeholder="1200" min="0.01" step="0.01">
+      <p style="font-size:13px;color:var(--text2);margin-bottom:8px">年利率（%）：</p>
+      <input type="number" class="money-input" id="depRatePct" placeholder="2.20" min="0" max="15" step="0.01">
+      <p style="font-size:13px;color:var(--text2);margin-bottom:8px">期限：</p>
+      <input type="text" class="note-input" id="depTerm" placeholder="如：30年 / 5年 / 3个月 / 活期" style="min-height:44px;margin-bottom:16px">
+      <div class="modal-actions">
+        <button class="btn-secondary" onclick="closeDepositModal()">取消</button>
+        <button class="btn-primary" onclick="saveDeposit()">确认</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 身体记录弹窗 -->
+  <div class="overlay" id="bodyOverlay" onclick="closeBodyModal(event)">
+    <div class="modal" role="dialog" aria-modal="true"onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <h3 id="bodyModalTitle">记录身体变化</h3>
+        <button class="close" aria-label="关闭" onclick="closeBodyModal()">&times;</button>
+      </div>
+      <div class="body-form-row">
+        <label>日期</label>
+        <input type="date" class="fund-form-input" id="bodyDate">
+      </div>
+      <div class="body-form-row">
+        <div class="form-grid">
+          <div>
+            <label>类型</label>
+            <select class="fund-form-input" id="bodyCategory">
+              <option value="健身">💪 健身</option>
+              <option value="补剂">💊 补剂</option>
+              <option value="整体">🧬 整体状态</option>
+              <option value="睡眠">😴 睡眠</option>
+              <option value="其他">📝 其他</option>
+            </select>
+          </div>
+          <div>
+            <label>阶段</label>
+            <select class="fund-form-input" id="bodyPhase">
+              <option>刚开始</option>
+              <option>第1周</option>
+              <option>第2周</option>
+              <option>第3周</option>
+              <option>第1个月</option>
+              <option>第2个月</option>
+              <option>第3个月</option>
+              <option>其他阶段</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="body-form-row">
+        <label>具体变化 / 感受（可留空，只要下面填了至少一项测量值）</label>
+        <textarea class="note-input" id="bodyContent" placeholder="例如：训练耐力提升，睡眠更深，精力更稳定，胃口变好..." style="min-height:100px;margin-bottom:0"></textarea>
+      </div>
+      <div class="body-form-row">
+        <div class="form-grid">
+          <div>
+            <label>体重（kg，可选）</label>
+            <input type="number" class="fund-form-input" id="bodyWeight" step="0.1" min="0">
+          </div>
+          <div>
+            <label>腰围（cm，可选）</label>
+            <input type="number" class="fund-form-input" id="bodyWaist" step="0.5" min="0">
+          </div>
+        </div>
+      </div>
+      <div class="body-form-row">
+        <div class="form-grid">
+          <div>
+            <label>静息心率（次/分，可选）</label>
+            <input type="number" class="fund-form-input" id="bodyRhr" step="1" min="0" max="250">
+          </div>
+          <div>
+            <label>睡眠（小时，可选）</label>
+            <input type="number" class="fund-form-input" id="bodySleep" step="0.5" min="0" max="24">
+          </div>
+        </div>
+      </div>
+      <div class="body-form-row">
+        <div class="form-grid">
+          <div>
+            <label>收缩压（mmHg，可选）</label>
+            <input type="number" class="fund-form-input" id="bodySys" step="1" min="0" max="300">
+          </div>
+          <div>
+            <label>舒张压（mmHg，可选）</label>
+            <input type="number" class="fund-form-input" id="bodyDia" step="1" min="0" max="200">
+          </div>
+        </div>
+      </div>
+      <div class="body-form-row">
+        <label>整体状态</label>
+        <div class="body-rating-options" id="bodyRatingOptions"></div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn-secondary" onclick="closeBodyModal()">取消</button>
+        <button class="btn-primary" onclick="saveBodyRecord()">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 购物清单弹窗 -->
+  <div class="overlay" id="shoppingOverlay" onclick="closeShoppingModal(event)">
+    <div class="modal wide" role="dialog" aria-modal="true"onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <h3 id="shoppingModalTitle">记录购物</h3>
+        <button class="close" aria-label="关闭" onclick="closeShoppingModal()">&times;</button>
+      </div>
+      <div class="body-form-row">
+        <label>物品名称</label>
+        <input type="text" class="fund-form-input" id="shoppingName" placeholder="如：筋膜枪、降噪耳机、护腰靠垫" maxlength="40">
+      </div>
+      <div class="body-form-row">
+        <label>状态</label>
+        <select class="fund-form-input" id="shoppingStatus">
+          <option value="plan">📋 计划中</option>
+          <option value="bought">✅ 已购买</option>
+        </select>
+      </div>
+      <div class="body-form-row">
+        <div class="form-grid">
+          <div>
+            <label>价格（元）</label>
+            <input type="number" class="fund-form-input" id="shoppingPrice" placeholder="如：299" min="0" step="0.01">
+          </div>
+          <div>
+            <label>购买日期</label>
+            <input type="date" class="fund-form-input" id="shoppingDate">
+          </div>
+        </div>
+      </div>
+      <div class="body-form-row">
+        <label>用在哪些地方</label>
+        <input type="text" class="fund-form-input" id="shoppingPlaces" placeholder="如：家里、健身房、夜班休息室、通勤路上" maxlength="80">
+      </div>
+      <div class="body-form-row">
+        <label>实用性</label>
+        <div class="body-rating-options" id="shoppingPracticalityOptions"></div>
+      </div>
+      <div class="body-form-row">
+        <label>买后开心度</label>
+        <div class="body-rating-options" id="shoppingHappinessOptions"></div>
+      </div>
+      <div class="body-form-row">
+        <label>使用感受 / 备注（可选）</label>
+        <textarea class="note-input" id="shoppingNote" placeholder="例如：每周用 3 次，值回票价；再买同类会选更轻的..." style="min-height:90px;margin-bottom:0"></textarea>
+      </div>
+      <div class="modal-actions">
+        <button class="btn-secondary" onclick="closeShoppingModal()">取消</button>
+        <button class="btn-primary" onclick="saveShoppingItem()">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 看书记录弹窗 -->
+  <div class="overlay" id="readingOverlay" onclick="closeReadingModal(event)">
+    <div class="modal wide" role="dialog" aria-modal="true"onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <h3 id="readingModalTitle">记录读书</h3>
+        <button class="close" aria-label="关闭" onclick="closeReadingModal()">&times;</button>
+      </div>
+      <input type="hidden" id="readingId">
+      <div class="body-form-row">
+        <label>书名</label>
+        <input type="text" class="fund-form-input" id="readingBookName" placeholder="如：活着、三体、原子习惯" maxlength="40">
+      </div>
+      <div class="body-form-row">
+        <div class="form-grid">
+          <div>
+            <label>作者（可选）</label>
+            <input type="text" class="fund-form-input" id="readingAuthor" placeholder="如：余华" maxlength="20">
+          </div>
+          <div>
+            <label>日期</label>
+            <input type="date" class="fund-form-input" id="readingDate">
+          </div>
+        </div>
+      </div>
+      <div class="body-form-row">
+        <div class="form-grid">
+          <div>
+            <label>阅读时长（分钟）</label>
+            <input type="number" class="fund-form-input" id="readingMinutes" placeholder="如：60" min="1" step="1">
+          </div>
+          <div>
+            <label>阅读页数（可选）</label>
+            <input type="number" class="fund-form-input" id="readingPages" placeholder="如：35" min="1" step="1">
+          </div>
+        </div>
+      </div>
+      <div class="body-form-row">
+        <label>状态</label>
+        <select class="fund-form-input" id="readingStatus">
+          <option value="在读">📖 在读</option>
+          <option value="读完">✅ 读完</option>
+          <option value="想读">⭐ 想读</option>
+        </select>
+      </div>
+      <div class="body-form-row">
+        <label>阅读笔记 / 感想（可选）</label>
+        <textarea class="note-input" id="readingNote" placeholder="例如：今天读到第 3 章，收获是..." style="min-height:90px;margin-bottom:0"></textarea>
+      </div>
+      <div class="modal-actions">
+        <button class="btn-secondary" onclick="closeReadingModal()">取消</button>
+        <button class="btn-primary" onclick="saveReadingRecord()">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="main.js"></script>
+</body>
+</html>
