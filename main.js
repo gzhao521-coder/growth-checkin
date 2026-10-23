@@ -75,8 +75,10 @@
     // v8：矿物质汇总增加"来源明细 + 超出多少"；含锌三项显式标注错开安排
     // v9：#5 与 #10 改为隔天轮换（每天元素锌降到 26mg 或 11mg，都在 40mg 以内）；
     //     #19 NOW 锌 50mg 单粒即超上限，移出每日清单（记录保留，可一键恢复）
-    // v10：改为"#10 每天 + #5 隔天"——吃到 #5 的那天锌 37mg，其余天 11mg，都 ≤40mg
-    const SUPPLEMENT_LIST_VERSION = 11;
+    // v11：（预留）
+    // v12：错开时段——#11 精氨酸→睡前、#18 阿育吠陀→下午、#20 X5→午餐后，
+    //     避免与 #17 他达拉非（早）及彼此的药理作用叠加；SUPPLEMENT_RESLOT_IDS 强制覆盖旧时段
+    const SUPPLEMENT_LIST_VERSION = 12;
     // 身体记录里"测量值"字段名。必须在这里声明：bodyRecordHasData() 会在启动时
     // （validateAndRepairData）被调用，若此常量声明在 `let data = loadData();` 之后
     // 就会踩暂时性死区，导致整个应用启动报错。
@@ -84,6 +86,9 @@
     // 处方药类项目的 id（不要再依赖 "id >= 16" 这种范围判断，
     // 否则以后往清单里加普通补剂会被误当成处方药）
     const MED_SUPPLEMENT_IDS = [16, 17, 18];
+    // v12 起被强制错开时段的项目：老用户的 timeSlot 会被迁移逻辑覆盖成新时段，
+    // 防止旧存档里残留的"早晨/午餐"时段让相互作用错开方案失效
+    const SUPPLEMENT_RESLOT_IDS = [11, 18, 20];
     // 本次启动是否做过了补剂清单迁移（用于静默保存，不触发"数据异常"告警）
     let supplementsMigrated = false;
 
@@ -605,16 +610,16 @@
         { id: 8, name: 'Supovita 12合一多维牡蛎片', icon: '💊', dosage: '按说明 1片', time: '早餐后', timeSlot: 'morning', taken: false, active: false, stock: null, stockTotal: null, stockUnit: '粒', lowStockThreshold: 10, note: '复合维生素+牡蛎提取物，含锌、硒等，随餐服用。', warning: '含锌，避免与其他锌产品叠加；脂溶性维生素长期过量可能积累' },
         { id: 9, name: 'Healthy Care 护肝排毒片', icon: '🛡️', dosage: '1粒（每日）', time: '随餐（建议晚餐后）', timeSlot: 'evening', taken: false, stock: null, stockTotal: null, stockUnit: '粒', lowStockThreshold: 10, tags: ['含亚硫酸盐'], note: 'Healthy Care Australia · Ultimate One-A-Day LIVER DETOX，规格 60粒（按每日1粒约60天），AUST L 421902。每粒：奶蓟草干果提取物 600mg（≈干果42g，标准化至水飞蓟宾 480mg）、姜黄干根茎提取物 80mg（≈2g）、朝鲜蓟干叶提取物 20mg（≈300mg）。标签注明：17岁及以下不适用。', warning: '【标签警示】① 极少数情况下姜黄可能损害肝脏；出现皮肤/眼睛发黄、异常疲劳、恶心、食欲不振、腹痛、深色尿液或瘙痒，请停药并就医。② 含亚硫酸盐，过敏者注意。③ 避免高剂量水飞蓟长期服用，建议定期监测肝功能；服药或准备手术前先咨询医生。' },
         { id: 10, name: 'RAINBOWBAR 男性睾酮促进剂', icon: '🌱', dosage: '2片（每日）', time: '随餐（午餐后）', timeSlot: 'noon', taken: false, stock: null, stockTotal: null, stockUnit: '片', lowStockThreshold: 10, zincMg: 11, tags: ['仅限男性'], note: 'RAINBOWBAR MEN\'S T-BOOST，标称100% PURE／2300mg，规格 90片＝45份（每份2片，约一个半月）。每份2片含：葫芦巴提取物 1200mg、葫芦巴糖苷 600mg、DIM 200mg、原薯蓣皂苷 150mg、锌 11mg、黑胡椒提取物（95%胡椒碱）10mg、硼 8mg、维生素D3 500IU。建议：每日2片随餐，本项**每天吃**。#5（含锌 26mg）隔天吃，所以吃到 #5 的那天锌合计 11+26=37mg，仍在 40mg 以内。', warning: '【标签提示】请勿超过建议每日用量；营养补充剂不可替代药物。含葫芦巴（可能影响血糖）、DIM、胡椒碱（黑胡椒提取物，常被提到会影响药物代谢酶）与硼，正在服药者建议先咨询医生。' },
-        { id: 11, name: 'MEGA STRENGTH L-精氨酸 1000mg', icon: '💥', dosage: '1片（1000mg）', time: '随餐（每日1片）', timeSlot: 'noon', taken: false, stock: null, stockTotal: null, stockUnit: '片', lowStockThreshold: 10, tags: ['医药级'], note: '每片含 L-精氨酸盐酸盐 1000mg（医药级、游离形式）。标签建议随餐服用以减少肠胃刺激；每日1至2次、每次1片。', warning: '【标签警示】低血压患者，以及正在服用降压药、硝酸甘油或伟哥类（PDE5 抑制剂）药物的人群，标签明确标注「绝对禁止服用」，可能导致血压急剧下降。另：可能引起胃肠不适；有疱疹病毒感染史者慎用；哮喘患者慎用。' },
+        { id: 11, name: 'MEGA STRENGTH L-精氨酸 1000mg', icon: '💥', dosage: '1片（1000mg）', time: '睡前（21:30）', timeSlot: 'evening', taken: false, stock: null, stockTotal: null, stockUnit: '片', lowStockThreshold: 10, tags: ['医药级'], note: '每片含 L-精氨酸盐酸盐 1000mg（医药级、游离形式）。标签建议随餐服用以减少肠胃刺激；每日1至2次、每次1片。⚠️ 已调到睡前（21:30）服用，与早晨服用的他达拉非（#17）错开约12小时，避开两段的血药浓度高峰重叠。', warning: '【标签警示】低血压患者，以及正在服用降压药、硝酸甘油或伟哥类（PDE5 抑制剂）药物的人群，标签明确标注「绝对禁止服用」，可能导致血压急剧下降。另：可能引起胃肠不适；有疱疹病毒感染史者慎用；哮喘患者慎用。【相互作用】与 PDE5 抑制剂（#17 他达拉非）合用时降压作用会叠加——本应用已把两者在时间上错开，但这不能彻底消除相互作用，如服用后出现头晕、眼前发黑等低血压症状，请立即停药并就医咨询医生。' },
         { id: 12, name: '小分子液体钙', icon: '🦴', dosage: '按说明', time: '午餐后', timeSlot: 'noon', taken: false, active: false, stock: null, stockTotal: null, stockUnit: '粒', lowStockThreshold: 10, note: '午餐后随餐服用，与铁锌间隔2小时以上。', warning: '过量可能增加结石风险，与铁锌竞争吸收' },
         { id: 13, name: '营养米粉', icon: '🍚', dosage: '按说明', time: '早餐/加餐', timeSlot: 'morning', taken: false, active: false, stock: null, stockTotal: null, stockUnit: '克', lowStockThreshold: 10, note: '作为代餐，早餐或加餐时服用。', warning: '过量可能导致热量过剩' },
         { id: 14, name: '口服胶原蛋白', icon: '✨', dosage: '按说明', time: '睡前1小时', timeSlot: 'evening', taken: false, active: false, stock: null, stockTotal: null, stockUnit: '克', lowStockThreshold: 10, note: '睡前1-2小时空腹服用，夜间修复效果更佳。', warning: '过量增加代谢负担' },
         { id: 15, name: '蛹虫草玛咖片', icon: '🍄', dosage: '按说明 1-2片', time: '早餐后/下午', timeSlot: 'morning', taken: false, active: false, stock: null, stockTotal: null, stockUnit: '片', lowStockThreshold: 10, note: '蛹虫草+玛咖，提升精力与状态，白天服用。', warning: '可能影响血糖/血压；晚上服用可能影响睡眠' },
         { id: 16, name: '达泊西汀 60mg', icon: '💊', dosage: '半片（30mg）', time: '按需 · 性活动前1-3小时', timeSlot: 'evening', taken: false, active: false, stock: null, stockTotal: null, stockUnit: '片', lowStockThreshold: 1, cycleEnabled: true, cycleTakeDays: 3, cycleStopDays: 1, cycleStart: getTodayStr(), tags: ['处方药'], note: '医生建议半片；按需服用，不建议连续每天使用，请按医生指示调整频次。', warning: '不可与MAO抑制剂、其他SSRI/SNRI、圣约翰草、5-HTP同用；避免酒精和西柚汁；头晕/晕厥风险' },
         { id: 17, name: 'Tadarise-5（他达拉非 5mg）', icon: '💊', dosage: '1片（5mg）', time: '早餐后固定时间（≤9:00）', timeSlot: 'morning', taken: false, stock: null, stockTotal: null, stockUnit: '片', lowStockThreshold: 1, cycleEnabled: true, cycleTakeDays: 3, cycleStopDays: 1, cycleStart: getTodayStr(), tags: ['处方药'], note: 'Sunrise 出品 · Tadalafil Tablets IP 5mg · 规格 10×10＝100片。辅料适量，色素含酒石黄（Tartrazine）。遵医嘱服用；储存：阴凉干燥、低于30°C、避光、儿童接触不到。标签注明：仅凭泌尿科/精神科/内分泌科/性病科医生处方零售。', warning: '【处方药】绝对禁止与硝酸甘油等硝酸酯类药物同用（可致血压骤降、危及生命）；严重心血管疾病、低血压患者禁用。与其他扩血管／降压类产品同用需谨慎。副作用：头痛、消化不良、背痛、肌肉痛、面部潮红、鼻塞；极少数情况可能出现突然视力丧失或听力下降，需立即就医。' },
-        { id: 18, name: 'REPL HYPOWER MUSLI（阿育吠陀）', icon: '🌿', dosage: '1粒（每日）', time: '饭后（每日1次）', timeSlot: 'morning', taken: false, stock: null, stockTotal: null, stockUnit: '粒', lowStockThreshold: 1, tags: ['阿育吠陀', '仅限男性'], note: '每粒500mg，含：Safed Musli 120mg、Sudha Shilajit 105mg、南非醉茄 95mg、刺毛黧豆（含左旋多巴）60mg、天门冬 60mg、Vidarikand 35mg、肉豆蔻 10mg、Abhrak Bhasm（云母灰）10mg。每日1粒，饭后服用（每天吃，不是吃几天停几天）。', warning: '【成分提示】① 含刺毛黧豆（左旋多巴）：正在服用帕金森药物、抗抑郁药（尤其 MAO 抑制剂）、抗精神病药物者应绝对避免。② 含 Shilajit 与云母灰（Bhasm）等矿物成分，此类阿育吠陀制剂有重金属（铅/汞/砷）超标风险，长期或超量服用可能损伤肝肾。③ 含南非醉茄，需关注甲状腺、血压、血糖。④ 仅限成年男性。⑤ 出现恶心、头晕、皮肤发黄、尿液变色等请立即停药就医。' },
+        { id: 18, name: 'REPL HYPOWER MUSLI（阿育吠陀）', icon: '🌿', dosage: '1粒（每日）', time: '下午（15:00）', timeSlot: 'afternoon', taken: false, stock: null, stockTotal: null, stockUnit: '粒', lowStockThreshold: 1, tags: ['阿育吠陀', '仅限男性'], note: '每粒500mg，含：Safed Musli 120mg、Sudha Shilajit 105mg、南非醉茄 95mg、刺毛黧豆（含左旋多巴）60mg、天门冬 60mg、Vidarikand 35mg、肉豆蔻 10mg、Abhrak Bhasm（云母灰）10mg。每日1粒，饭后服用（每天吃，不是吃几天停几天）。⚠️ 已调到下午（15:00）服用：本项含左旋多巴与南非醉茄，与 X5（#20）的育亨宾兴奋作用错开，避免同服的叠加兴奋/失眠。', warning: '【成分提示】① 含刺毛黧豆（左旋多巴）：正在服用帕金森药物、抗抑郁药（尤其 MAO 抑制剂）、抗精神病药物者应绝对避免。② 含 Shilajit 与云母灰（Bhasm）等矿物成分，此类阿育吠陀制剂有重金属（铅/汞/砷）超标风险，长期或超量服用可能损伤肝肾。③ 含南非醉茄，需关注甲状腺、血压、血糖。④ 仅限成年男性。⑤ 出现恶心、头晕、皮肤发黄、尿液变色等请立即停药就医。' },
         { id: 19, name: 'NOW Foods 吡啶甲酸锌 50mg', icon: '⚡', dosage: '1粒（元素锌 50mg）', time: '已移出每日轮换', timeSlot: 'afternoon', taken: false, active: false, stock: null, stockTotal: null, stockUnit: '粒', lowStockThreshold: 10, zincMg: 50, tags: ['高剂量锌', '已移出轮换'], note: 'NOW Foods Zinc Picolinate。每份1粒含元素锌 50mg，规格 60粒。★ 已移出每日清单：单粒 50mg 本身就超过"每天 40mg"的参考上限，任何按天轮换的安排里，只要那天吃了它就会超标。想恢复请点本项的「重新开始」。', warning: '【应用参考】单粒元素锌 50mg，已超过应用提示里"每天锌总量不宜长期超过 40mg"的参考值；锌过量会影响铜吸收。请按标签或医生建议服用。' },
-        { id: 20, name: 'X5 TEST FORCE', icon: '🌿', dosage: '2粒（每日）／活动前3粒', time: '随餐（每日2粒）', timeSlot: 'morning', taken: false, stock: null, stockTotal: null, stockUnit: '粒', lowStockThreshold: 10, tags: ['草本', '仅限男性'], note: 'X5 TEST FORCE（强效草本混合物）。每份2粒含：淫羊藿提取物 500mg（含淫羊藿苷 50mg）、玛卡 1200mg、蒺藜提取物 250mg（含皂苷 112.5mg）、育亨宾提取物 80mg（标准化含2%育亨宾生物碱 ≈1.6mg）、L-精氨酸盐酸盐 40mg。规格 90粒＝45份。标签建议：每日2粒随餐；为更快效果可在活动前60-90分钟服3粒。⚠️ 倒班注意：育亨宾有兴奋作用，夜班前（D2）或夜班后（D3）的早晨服用可能影响班前觉/补觉；建议只在白班日/休息日的早晨服用。', warning: '【标签警示】① 含育亨宾（Yohimbe）：作用较强的植物生物碱，可能引起血压升高、心跳加快、焦虑、失眠；有高血压、心脏病、焦虑症，或正在服用降压药、抗抑郁药（尤其 MAO 抑制剂）、抗凝药者应避免。② 不要与硝酸酯类药物或其他血管扩张剂同服。③ 标签建议活动前服3粒属急性用法，请勿睡前服用。④ 请严格遵守每日2粒（或短期3粒），切勿超量。⑤ 有前列腺或激素相关疾病、正在服用其他药物者，务必先咨询医生。' },
+        { id: 20, name: 'X5 TEST FORCE', icon: '🌿', dosage: '2粒（每日）／活动前3粒', time: '午餐后（12:00-13:00）', timeSlot: 'noon', taken: false, stock: null, stockTotal: null, stockUnit: '粒', lowStockThreshold: 10, tags: ['草本', '仅限男性'], note: 'X5 TEST FORCE（强效草本混合物）。每份2粒含：淫羊藿提取物 500mg（含淫羊藿苷 50mg）、玛卡 1200mg、蒺藜提取物 250mg（含皂苷 112.5mg）、育亨宾提取物 80mg（标准化含2%育亨宾生物碱 ≈1.6mg）、L-精氨酸盐酸盐 40mg。规格 90粒＝45份。标签建议：每日2粒随餐；为更快效果可在活动前60-90分钟服3粒。⚠️ 已调到午餐后服用：① 他达拉非（#17，早晨）是扩血管降压，育亨宾是升压——血药高峰不重叠可减小血压波动幅度；② 育亨宾有兴奋作用，夜间（尤其与睡前服用的精氨酸同时段）服用会影响睡眠。活动前的急性3粒用法仍照标签。倒班注意：夜班日按实际作息把"午餐后"平移到白天中段的一餐。', warning: '【标签警示】① 含育亨宾（Yohimbe）：作用较强的植物生物碱，可能引起血压升高、心跳加快、焦虑、失眠；有高血压、心脏病、焦虑症，或正在服用降压药、抗抑郁药（尤其 MAO 抑制剂）、抗凝药者应避免。【相互作用】与降压/扩血管类药物（#17 他达拉非）方向相反，可能引起血压不稳——已错开服用时段，但如仍出现头晕、心悸等请停用并就医。② 不要与硝酸酯类药物或其他血管扩张剂同服。③ 标签建议活动前服3粒属急性用法，请勿睡前服用。④ 请严格遵守每日2粒（或短期3粒），切勿超量。⑤ 有前列腺或激素相关疾病、正在服用其他药物者，务必先咨询医生。' },
         { id: 21, name: 'FoYes 多种维生素矿物质耐力片', icon: '🧬', dosage: '2片（隔天2片）', time: '随餐（早餐后）· 隔天', timeSlot: 'morning', taken: false, stock: null, stockTotal: null, stockUnit: '片', lowStockThreshold: 10, zincMg: 10, magnesiumMg: 160, cycleEnabled: true, cycleTakeDays: 1, cycleStopDays: 1, cycleStart: '2026-01-02', tags: ['维生素矿物质', '隔天'], note: 'FoYes / EXE[FIT] 多种维生素矿物质耐力片 · 运动营养食品（耐力类）· GB 24154 · 生产许可证 SC10633021100134 · 净含量 90g＝1.0g×90片。食用方法：吞食，每日1次、每次2片。每份（2片）：能量15kJ、碳水0.9g、钠2mg；维生素A 220µg、D 6.0µg、E 10mg α-TE、B1 3.0mg、B2 1.2mg、B6 1.6mg、B12 2.6µg、C 80mg、烟酸14mg、叶酸120µg、泛酸3mg、生物素40µg；矿物质 镁160mg、钙200mg、铁2.5mg、锌10mg、硒40µg、铜0.8mg、锰1.6mg、钼90µg、铬24µg。另添加黑胡椒提取物。为把每天元素锌控制在 40mg 以内，本项与 #5 隔天交替（两项不会同一天吃）。', warning: '【标签提示】本品为运动营养食品，不能替代药物治疗。含黑胡椒提取物（胡椒碱，属生物利用度增强剂），可能提高同服药物或补剂的血药浓度——正在服用处方药时请先咨询医生。有肾脏疾病或正在服用利尿剂等药物者，补充矿物质前建议先咨询医生。' }
       ].map(normalizeSupplementItem);
     }
@@ -669,6 +674,8 @@
           });
           // 再还原用户数据
           if (keptTimeSlot) cur.timeSlot = keptTimeSlot;
+          // 相互作用错开项：强制覆盖为新时段（用户自行改的时段也必须让位，安全优先）
+          if (SUPPLEMENT_RESLOT_IDS.indexOf(t.id) !== -1) cur.timeSlot = t.timeSlot;
           cur.records = keptRecords;
           if (keptStock !== undefined) cur.stock = keptStock;
           if (keptStockTotal !== undefined) cur.stockTotal = keptStockTotal;
@@ -1676,7 +1683,11 @@
     function getFinanceStats() {
       const fin = data.modules.finance;
       const target = fin.targetAmount || 0;
-      const current = fin.currentAmount || 0;
+      // 当前存款 = 存款资产总本金 + 全部收支流水净额（与「存款资产」区块实时联动）
+      const deposits = Array.isArray(fin.deposits) ? fin.deposits : [];
+      const depositPrincipal = deposits.reduce((s, d) => s + (Number(d.amount) || 0), 0);
+      const txNet = (fin.transactions || []).reduce((s, t) => s + (t.type === 'income' ? (Number(t.amount) || 0) : -(Number(t.amount) || 0)), 0);
+      const current = depositPrincipal + txNet;
       const budget = fin.monthlyBudget || 0;
       const pct = target > 0 ? Math.min(100, Math.round(current / target * 100)) : 0;
       const remaining = Math.max(0, target - current);
@@ -6415,6 +6426,50 @@
       return '';
     }
 
+    // ========== 主页今日周期提醒 ==========
+    // 扫描所有模块的周期任务：cycle 类型今天处于"可打卡状态"（如喂食）、period 类型今天到期的，
+    // 汇总到主页工作台显示，点击可跳转到对应模块。
+    function getTodayCycleReminders() {
+      const list = [];
+      Object.keys(data.modules).forEach(moduleId => {
+        const mod = data.modules[moduleId];
+        if (!mod || !Array.isArray(mod.habits)) return;
+        mod.habits.forEach(h => {
+          if (h.type === 'cycle') {
+            const state = getCycleState(h, today);
+            if (isCycleCheckable(h, state)) {
+              list.push({ moduleId, icon: h.icon, name: h.name, label: state, done: h.records.includes(today) });
+            }
+          } else if (h.type === 'period') {
+            if (isPeriodDay(h, today)) {
+              list.push({ moduleId, icon: h.icon, name: h.name, label: '今天', done: h.records.includes(today) });
+            }
+          }
+        });
+      });
+      return list;
+    }
+
+    function renderCycleReminderHtml() {
+      const items = getTodayCycleReminders();
+      if (!items.length) return '';
+      const allDone = items.every(i => i.done);
+      const chips = items.map(i => {
+        const cfg = MODULE_CONFIG[i.moduleId] || {};
+        return `<button class="cr-chip ${i.done ? 'done' : ''}" onclick="switchModule('${i.moduleId}')">
+          <span class="cr-icon">${i.icon}</span>
+          <span class="cr-name">${escapeHtml(i.name)}</span>
+          <span class="cr-label">${escapeHtml(i.label)}</span>
+          <span class="cr-mark">${i.done ? '✓' : ''}</span>
+        </button>`;
+      }).join('');
+      return `
+        <div class="cycle-reminder ${allDone ? 'all-done' : ''}">
+          <div class="cr-head">${allDone ? '✅ 今日周期提醒（全部完成）' : '⏰ 今日周期提醒'}</div>
+          <div class="cr-chips">${chips}</div>
+        </div>`;
+    }
+
     function renderWorkbenchHtml() {
       const s = getCompletionForDate(today);
       const score = getGrowthScore(today);
@@ -6434,6 +6489,7 @@
             </div>
           </div>
           ${renderTimeCardHtml()}
+          ${renderCycleReminderHtml()}
         </div>
       `;
     }

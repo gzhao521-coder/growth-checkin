@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>成长APP 数据导出工具</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Microsoft YaHei', sans-serif; }
+  body { background: #0f0f23; color: #f0f0f5; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
+  .box { background: #181828; border: 1px solid #64ffda33; border-radius: 16px; padding: 32px; max-width: 520px; width: 100%; }
+  h1 { font-size: 20px; color: #64ffda; margin-bottom: 8px; }
+  p.sub { font-size: 13px; color: #8892b0; margin-bottom: 20px; line-height: 1.6; }
+  .status { background: #ffffff0d; border-radius: 10px; padding: 14px 16px; font-size: 13px; line-height: 1.8; margin-bottom: 16px; min-height: 60px; }
+  .ok { color: #00e676; } .err { color: #ff5252; } .warn { color: #ffd740; }
+  button { width: 100%; padding: 14px; border: none; border-radius: 10px; font-size: 15px; font-weight: bold; cursor: pointer; background: linear-gradient(135deg, #64ffda, #00d4ff); color: #0f0f23; }
+  button:disabled { opacity: .4; cursor: not-allowed; }
+  .note { font-size: 12px; color: #8892b0; margin-top: 14px; line-height: 1.7; }
+</style>
+</head>
+<body>
+<div class="box">
+  <h1>💾 成长APP 数据导出工具</h1>
+  <p class="sub">从浏览器存储中读取「成长」APP 的全部数据（打卡记录、财务、存款配置），生成明文 JSON 备份文件。</p>
+  <div class="status" id="status">正在读取数据…</div>
+  <button id="btn" disabled>⬇️ 下载备份文件</button>
+  <p class="note">⚠️ 备份文件是<strong>明文</strong>，包含你的全部记录，请妥善保存，不要发给他人。<br>建议把下载的文件移到桌面或 U 盘长期保存。</p>
+</div>
+<script>
+(function () {
+  var DB_NAME = 'growth-checkin-db', STORE = 'appData', LS_KEY = 'myCheckinApp_v10';
+  var statusEl = document.getElementById('status'), btn = document.getElementById('btn');
+  var payload = null, source = '', fileName = '';
+
+  function setStatus(html) { statusEl.innerHTML = html; }
+  function pad(n) { return String(n).padStart(2, '0'); }
+
+  function readIDB() {
+    return new Promise(function (resolve) {
+      var req = indexedDB.open(DB_NAME);
+      req.onerror = function () { resolve(null); };
+      req.onsuccess = function () {
+        var db = req.result;
+        try {
+          var tx = db.transaction(STORE, 'readonly');
+          var get = tx.objectStore(STORE).get('data');
+          get.onsuccess = function () { resolve(get.result || null); };
+          get.onerror = function () { resolve(null); };
+        } catch (e) { resolve(null); }
+      };
+    });
+  }
+
+  async function main() {
+    try {
+      var data = await readIDB();
+      if (data && data.modules) {
+        source = 'IndexedDB（主存储）';
+        payload = data;
+      } else {
+        var raw = localStorage.getItem(LS_KEY);
+        if (raw) {
+          data = JSON.parse(raw);
+          if (data && data.modules) { source = 'localStorage（备份存储）'; payload = data; }
+        }
+      }
+      if (!payload) {
+        setStatus('<span class="err">❌ 没有找到数据。</span><br>请确认你是用<strong>同一个浏览器</strong>打开过「成长」APP 本身（先打开过一次 APP，数据才会存在）。');
+        return;
+      }
+      var d = new Date();
+      fileName = '成长APP数据备份_' + d.getFullYear() + pad(d.getMonth() + 1) + pad(d.getDate()) + '.json';
+      var json = JSON.stringify({ exportedAt: d.toISOString(), source: source, app: 'growth-checkin', data: payload }, null, 2);
+      var sizeKB = (new Blob([json]).size / 1024).toFixed(1);
+      var habits = 0, txs = (payload.modules.finance && payload.modules.finance.transactions || []).length;
+      if (payload.modules.daily && payload.modules.daily.habits) habits = payload.modules.daily.habits.length;
+      setStatus(
+        '<span class="ok">✅ 读取成功（来源：' + source + '）</span><br>' +
+        '数据大小：' + sizeKB + ' KB<br>' +
+        '打卡习惯：' + habits + ' 个 ｜ 收支记录：' + txs + ' 笔' +
+        (payload.modules.finance && payload.modules.finance.deposits ? '<br>存款资产：' + payload.modules.finance.deposits.length + ' 笔（每日收益记账已包含）' : '')
+      );
+      btn.disabled = false;
+      btn.onclick = function () {
+        var blob = new Blob([json], { type: 'application/json' });
+        var a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(function () { document.body.removeChild(a); URL.revokeObjectURL(a.href); }, 0);
+        setTimeout(function () { setStatus(statusEl.innerHTML + '<br><span class="ok">⬇️ 已触发下载：' + fileName + '（请在浏览器的下载目录查收）</span>'); }, 300);
+      };
+      // 自动触发一次下载
+      btn.click();
+    } catch (e) {
+      setStatus('<span class="err">❌ 导出失败：' + (e && e.message ? e.message : e) + '</span>');
+    }
+  }
+  main();
+})();
+</script>
+</body>
+</html>
