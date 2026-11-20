@@ -128,7 +128,7 @@
   </nav>
 
   <div class="overlay" id="navMoreOverlay" onclick="closeNavMore(event)">
-    <div class="modal nav-more-modal" role="dialog" aria-modal="true"onclick="event.stopPropagation()">
+    <div class="modal nav-more-modal" role="dialog" aria-modal="true" onclick="event.stopPropagation()">
       <div class="modal-header">
         <h3>全部模块</h3>
         <button class="close" aria-label="关闭" onclick="closeNavMore()">&times;</button>
@@ -138,7 +138,7 @@
   </div>
 
   <div class="overlay" id="headerMenuOverlay" onclick="closeHeaderMenu(event)">
-    <div class="modal header-menu-modal" role="dialog" aria-modal="true"onclick="event.stopPropagation()">
+    <div class="modal header-menu-modal" role="dialog" aria-modal="true" onclick="event.stopPropagation()">
       <div class="modal-header">
         <h3>工具菜单</h3>
         <button class="close" aria-label="关闭" onclick="closeHeaderMenu()">&times;</button>
@@ -160,7 +160,7 @@
   </div>
 
   <div class="overlay" id="overlay" onclick="closeModal(event)">
-    <div class="modal" role="dialog" aria-modal="true"onclick="event.stopPropagation()">
+    <div class="modal" role="dialog" aria-modal="true" onclick="event.stopPropagation()">
       <div class="modal-header">
         <h3 id="modalTitle">打卡记录</h3>
         <button class="close" aria-label="关闭" onclick="closeModal()">&times;</button>
@@ -170,7 +170,7 @@
   </div>
 
   <div class="overlay" id="noteOverlay" onclick="closeNoteModal(event)">
-    <div class="modal wide" role="dialog" aria-modal="true"onclick="event.stopPropagation()">
+    <div class="modal wide" role="dialog" aria-modal="true" onclick="event.stopPropagation()">
       <div class="modal-header">
         <h3 id="noteModalTitle">记录数据</h3>
         <button class="close" aria-label="关闭" onclick="closeNoteModal()">&times;</button>
@@ -185,7 +185,7 @@
   </div>
 
   <div class="overlay" id="fuelOverlay" onclick="closeFuelModal(event)">
-    <div class="modal wide" role="dialog" aria-modal="true"onclick="event.stopPropagation()">
+    <div class="modal wide" role="dialog" aria-modal="true" onclick="event.stopPropagation()">
       <div class="modal-header">
         <h3>⛽ 加油记录</h3>
         <button class="close" aria-label="关闭" onclick="closeFuelModal()">&times;</button>
@@ -219,7 +219,7 @@
   </div>
 
   <div class="overlay" id="makeupOverlay" onclick="closeMakeupModal(event)">
-    <div class="modal" role="dialog" aria-modal="true"onclick="event.stopPropagation()">
+    <div class="modal" role="dialog" aria-modal="true" onclick="event.stopPropagation()">
       <div class="modal-header">
         <h3>↩ 补卡</h3>
         <button class="close" aria-label="关闭" onclick="closeMakeupModal()">&times;</button>
@@ -243,7 +243,7 @@
 
   <!-- 目标设置弹窗 -->
   <div class="overlay" id="targetOverlay" onclick="closeTargetModal(event)">
-    <div class="modal" role="dialog" aria-modal="true"onclick="event.stopPropagation()">
+    <div class="modal" role="dialog" aria-modal="true" onclick="event.stopPropagation()">
       <div class="modal-header">
         <h3>🎯 目标与预算</h3>
         <button class="close" aria-label="关闭" onclick="closeTargetModal()">&times;</button>
@@ -262,7 +262,7 @@
 
   <!-- 显化记录添加弹窗 -->
   <div class="overlay" id="manifestRecordOverlay" onclick="closeManifestRecordModal(event)">
-    <div class="modal wide" role="dialog" aria-modal="true"onclick="event.stopPropagation()">
+    <div class="modal wide" role="dialog" aria-modal="true" onclick="event.stopPropagation()">
       <div class="modal-header">
         <h3>✨ 添加显化记录</h3>
         <button class="close" aria-label="关闭" onclick="closeManifestRecordModal()">&times;</button>
@@ -292,7 +292,7 @@
 
   <!-- 诊断弹窗 -->
   <div class="overlay" id="diagOverlay" onclick="if(event.target===this)this.classList.remove('show')">
-    <div class="modal wide" role="dialog" aria-modal="true"onclick="event.stopPropagation()">
+    <div class="modal wide" role="dialog" aria-modal="true" onclick="event.stopPropagation()">
       <div class="modal-header">
         <h3>🔍 数据诊断</h3>
         <button class="close" aria-label="关闭" onclick="document.getElementById('diagOverlay').classList.remove('show')">&times;</button>
@@ -307,7 +307,7 @@
 
   <!-- 备份与恢复弹窗 -->
   <div class="overlay" id="backupOverlay" onclick="closeBackupModal(event)">
-    <div class="modal wide" role="dialog" aria-modal="true"onclick="event.stopPropagation()">
+    <div class="modal wide" role="dialog" aria-modal="true" onclick="event.stopPropagation()">
       <div class="modal-header">
         <h3>💾 备份与恢复</h3>
         <button class="close" aria-label="关闭" onclick="closeBackupModal()">&times;</button>
@@ -344,7 +344,7 @@
 
   <!-- 通用编辑弹窗 -->
   <div class="overlay" id="editOverlay" onclick="closeEditModal(event)">
-    <div class="modal wide" role="dialog" aria-modal="true"onclick="event.stopPropagation()">
+    <div class="modal wide" role="dialog" aria-modal="true" onclick="event.stopPropagation()">
       <div class="modal-header">
         <h3 id="editModalTitle">编辑</h3>
         <button class="close" aria-label="关闭" onclick="closeEditModal()">&times;</button>
@@ -359,7 +359,7 @@
 
   <!-- 统计弹窗 -->
   <div class="overlay" id="statsOverlay" onclick="closeStatsModal(event)">
-    <div class="modal wide" role="dialog" aria-modal="true"onclick="event.stopPropagation()">
+    <div class="modal wide" role="dialog" aria-modal="true" onclick="event.stopPropagation()">
       <div class="modal-header">
         <h3>📊 打卡统计</h3>
         <button class="close" aria-label="关闭" onclick="closeStatsModal()">&times;</button>
@@ -398,7 +398,7 @@
 
   <!-- 每周复盘弹窗 -->
   <div class="overlay" id="weeklyOverlay" onclick="closeWeeklyReport(event)">
-    <div class="modal wide" role="dialog" aria-modal="true"onclick="event.stopPropagation()">
+    <div class="modal wide" role="dialog" aria-modal="true" onclick="event.stopPropagation()">
       <div class="modal-header">
         <h3>📅 每周复盘</h3>
         <button class="close" aria-label="关闭" onclick="closeWeeklyReport()">&times;</button>
@@ -412,7 +412,7 @@
 
   <!-- 个性化弹窗 -->
   <div class="overlay" id="personalizeOverlay" onclick="closePersonalizeModal(event)">
-    <div class="modal wide" role="dialog" aria-modal="true"onclick="event.stopPropagation()">
+    <div class="modal wide" role="dialog" aria-modal="true" onclick="event.stopPropagation()">
       <div class="modal-header">
         <h3>🎨 视觉与个性化</h3>
         <button class="close" aria-label="关闭" onclick="closePersonalizeModal()">&times;</button>
@@ -426,7 +426,7 @@
 
   <!-- 日历总览弹窗 -->
   <div class="overlay" id="calendarOverlay" onclick="closeCalendarOverviewModal(event)">
-    <div class="modal wide" role="dialog" aria-modal="true"onclick="event.stopPropagation()">
+    <div class="modal wide" role="dialog" aria-modal="true" onclick="event.stopPropagation()">
       <div class="modal-header">
         <h3>📅 日历总览</h3>
         <button class="close" aria-label="关闭" onclick="closeCalendarOverviewModal()">&times;</button>
@@ -450,7 +450,7 @@
 
   <!-- 每日提醒弹窗 -->
   <div class="overlay" id="reminderOverlay" onclick="closeReminderModal(event)">
-    <div class="modal" role="dialog" aria-modal="true"onclick="event.stopPropagation()">
+    <div class="modal" role="dialog" aria-modal="true" onclick="event.stopPropagation()">
       <div class="modal-header">
         <h3>🔔 每日提醒</h3>
         <button class="close" aria-label="关闭" onclick="closeReminderModal()">&times;</button>
@@ -490,7 +490,7 @@
   </div>
 
   <div class="overlay" id="pinOverlay" onclick="closePinModal(event)">
-    <div class="modal" role="dialog" aria-modal="true"onclick="event.stopPropagation()">
+    <div class="modal" role="dialog" aria-modal="true" onclick="event.stopPropagation()">
       <div class="modal-header">
         <h3>🔒 PIN 保护</h3>
         <button class="close" aria-label="关闭" onclick="closePinModal()">&times;</button>
@@ -516,7 +516,7 @@
 
   <!-- 成就弹窗 -->
   <div class="overlay" id="achievementsOverlay" onclick="closeAchievementsModal(event)">
-    <div class="modal wide" role="dialog" aria-modal="true"onclick="event.stopPropagation()">
+    <div class="modal wide" role="dialog" aria-modal="true" onclick="event.stopPropagation()">
       <div class="modal-header">
         <h3>🏆 打卡成就</h3>
         <button class="close" aria-label="关闭" onclick="closeAchievementsModal()">&times;</button>
@@ -530,7 +530,7 @@
 
   <!-- 交易记录弹窗 -->
   <div class="overlay" id="txOverlay" onclick="closeTxModal(event)">
-    <div class="modal" role="dialog" aria-modal="true"onclick="event.stopPropagation()">
+    <div class="modal" role="dialog" aria-modal="true" onclick="event.stopPropagation()">
       <div class="modal-header">
         <h3 id="txModalTitle">记录收支</h3>
         <button class="close" aria-label="关闭" onclick="closeTxModal()">&times;</button>
@@ -576,7 +576,7 @@
 
   <!-- 身体记录弹窗 -->
   <div class="overlay" id="bodyOverlay" onclick="closeBodyModal(event)">
-    <div class="modal" role="dialog" aria-modal="true"onclick="event.stopPropagation()">
+    <div class="modal" role="dialog" aria-modal="true" onclick="event.stopPropagation()">
       <div class="modal-header">
         <h3 id="bodyModalTitle">记录身体变化</h3>
         <button class="close" aria-label="关闭" onclick="closeBodyModal()">&times;</button>
@@ -665,7 +665,7 @@
 
   <!-- 购物清单弹窗 -->
   <div class="overlay" id="shoppingOverlay" onclick="closeShoppingModal(event)">
-    <div class="modal wide" role="dialog" aria-modal="true"onclick="event.stopPropagation()">
+    <div class="modal wide" role="dialog" aria-modal="true" onclick="event.stopPropagation()">
       <div class="modal-header">
         <h3 id="shoppingModalTitle">记录购物</h3>
         <button class="close" aria-label="关闭" onclick="closeShoppingModal()">&times;</button>
@@ -718,7 +718,7 @@
 
   <!-- 看书记录弹窗 -->
   <div class="overlay" id="readingOverlay" onclick="closeReadingModal(event)">
-    <div class="modal wide" role="dialog" aria-modal="true"onclick="event.stopPropagation()">
+    <div class="modal wide" role="dialog" aria-modal="true" onclick="event.stopPropagation()">
       <div class="modal-header">
         <h3 id="readingModalTitle">记录读书</h3>
         <button class="close" aria-label="关闭" onclick="closeReadingModal()">&times;</button>

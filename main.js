@@ -3,6 +3,8 @@
         let refreshing = false;
         navigator.serviceWorker.addEventListener('controllerchange', () => {
           if (refreshing) return;
+          // 正在填表单时直接 reload 会把输入清空，改为显示"发现新版本"提示条
+          if (getVisibleOverlay()) { showUpdateToast(); return; }
           refreshing = true;
           location.reload();
         });
@@ -51,8 +53,8 @@
 
     const LS_KEY = 'myCheckinApp_v10';
     // 单一版本号来源：诊断信息、备份 payload、sw.js 的 CACHE_NAME 都应对齐这里
-    const APP_VERSION = 'v113';
-    const CURRENT_SCHEMA_VERSION = 1;
+    const APP_VERSION = 'v115';
+    const CURRENT_SCHEMA_VERSION = 3;
     // 存储安全状态。必须在 `let data = loadData();` 之前初始化：
     // loadData / saveData / validateAndRepairData 都会用到它们，放在后面会踩暂时性死区（TDZ）直接报错。
     let storageHealthy = true;
@@ -125,12 +127,15 @@
     }
 
     async function dbSet(db, key, value) {
+      // 必须等事务 oncomplete 才算写成功：只看 put 请求的 onsuccess 的话，
+      // 事务后面回滚了也会被当成写成功，是"看起来存了其实没存"的经典来源。
       return new Promise((resolve, reject) => {
-        const tx = db.transaction(STORE_NAME, 'readwrite');
-        const store = tx.objectStore(STORE_NAME);
-        const req = store.put(value, key);
-        req.onsuccess = () => resolve();
-        req.onerror = () => reject(req.error);
+        let tx;
+        try { tx = db.transaction(STORE_NAME, 'readwrite'); } catch (e) { reject(e); return; }
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error || new Error('IndexedDB 事务失败'));
+        tx.onabort = () => reject(tx.error || new Error('IndexedDB 事务被中断'));
+        try { tx.objectStore(STORE_NAME).put(value, key); } catch (e) { reject(e); }
       });
     }
 
@@ -144,56 +149,96 @@
       });
     }
 
-    // 加载优先顺序：IndexedDB → localStorage → initData
+    // 两处副本的"谁更新"判定：
+    // 每次保存都会在数据上打一个 _rev 时间戳；老数据没有时间戳时退回"序列化后更长的那份"。
+    function dataRev(obj) {
+      if (!obj || typeof obj !== 'object') return 0;
+      const r = Number(obj._rev);
+      return Number.isFinite(r) && r > 0 ? r : 0;
+    }
+
+    function pickNewerCopy(a, b) {
+      const hasA = !!(a && a.modules);
+      const hasB = !!(b && b.modules);
+      if (!hasA) return hasB ? b : null;
+      if (!hasB) return a;
+      const ra = dataRev(a), rb = dataRev(b);
+      if (ra !== rb) return ra > rb ? a : b;
+      try { return JSON.stringify(a).length >= JSON.stringify(b).length ? a : b; } catch (e) { return a; }
+    }
+
+    // 加载顺序：IndexedDB 与 localStorage 都读出来，取较新的那份
+    // （以前是"IndexedDB 有数据就无条件覆盖内存"，点完打卡立刻切后台/被杀进程时，
+    //  IndexedDB 还没提交，下次打开就用旧数据把新的盖掉了）
     async function initStorage() {
+      let idbSaved = null;
       try {
         const db = await initIndexedDB();
-        let saved = await dbGet(db, 'data');
-        if (saved && saved.modules) {
-          console.log('[Storage] 从 IndexedDB 加载数据');
-          idbReady = true;
-          return saved;
-        }
-        // IndexedDB 为空，尝试从 localStorage 迁移
-        let raw = null;
-        try { raw = localStorage.getItem(LS_KEY); } catch (e) { raw = null; }
-        if (raw) {
-          try {
-            saved = JSON.parse(raw);
-            if (saved && saved.modules) {
-              console.log('[Storage] 从 localStorage 迁移到 IndexedDB');
-              await dbSet(db, 'data', saved);
-              idbReady = true;
-              return saved;
-            }
-          } catch (e) {
-            console.log('[Storage] localStorage 数据解析失败:', e);
-          }
-        }
         idbReady = true;
-        return null; // 首次使用
+        idbSaved = await dbGet(db, 'data');
       } catch (e) {
-        console.log('[Storage] IndexedDB 不可用，回退到 localStorage:', e);
         idbReady = false;
+        console.log('[Storage] IndexedDB 不可用，回退到 localStorage:', e);
+      }
+
+      let lsSaved = null;
+      try {
+        const raw = localStorage.getItem(LS_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed && parsed.modules) lsSaved = parsed;
+        }
+      } catch (e) {
+        console.log('[Storage] localStorage 副本不可用:', e);
+      }
+
+      const newer = pickNewerCopy(idbSaved, lsSaved);
+      if (!newer) {
+        console.log('[Storage] 两处都没有历史数据，使用初始数据');
         return null;
       }
+      console.log('[Storage] 采用较新的副本:', newer === idbSaved ? 'IndexedDB' : 'localStorage', '(_rev=' + dataRev(newer) + ')');
+      return newer;
     }
 
     async function persistData(payload) {
-      // 1. 始终写 localStorage（同步，保底）
+      // 数据损坏时本会话一律不写回。saveData 里已有同样的保护，但启动同步是直接调
+      // persistData 的，绕过了 saveData，所以这道闸必须放在这里。
+      if (!storageHealthy) {
+        console.log('persistData: 存储状态异常，跳过写入以保护原始数据');
+        return;
+      }
+      // 每次保存打一个时间戳，启动时用它判断哪份副本更新
+      const rev = Date.now();
+      if (payload && typeof payload === 'object') payload._rev = rev;
+
+      // 1. localStorage（同步，保底）
+      let lsOk = true, lsErr = null;
       try {
         localStorage.setItem(LS_KEY, JSON.stringify(payload));
       } catch (e) {
+        lsOk = false; lsErr = e;
         console.log('localStorage 写入失败:', e);
       }
-      // 2. 如果 IndexedDB 可用，异步写入
+
+      // 2. IndexedDB（可用时）
+      let idbOk = !idbReady;
       if (idbReady) {
         try {
           const db = await initIndexedDB();
           await dbSet(db, 'data', payload);
+          idbOk = true;
         } catch (e) {
+          idbOk = false;
           console.log('IndexedDB 写入失败:', e);
         }
+      }
+
+      // 两个副本都失败才算真的失败 —— saveData 里的配额提示才有机会执行（以前这里永远不 reject，那段是死代码）
+      if (!lsOk && !idbOk) throw lsErr || new Error('两个存储副本都写入失败');
+      // 只有 localStorage 失败但 IndexedDB 成功：数据没丢，但主存储不可靠，提示一次
+      if (!lsOk && idbOk) {
+        warnStorageOnce('⚠️ 主存储写入失败，本次改动已写入备用存储（IndexedDB）。\n\n建议到「工具菜单 → 备份」导出一份。');
       }
     }
 
@@ -344,12 +389,12 @@
     let data = loadData();
     validateAndRepairData();
 
-    // ========== IndexedDB 启动同步 ==========
-    // 优先使用 IndexedDB 数据（如果存在且更新），否则保持 localStorage 数据
-    initStorage().then(async (idbData) => {
-      if (idbData && idbData.modules) {
-        // 用 IndexedDB 数据覆盖（它更可能是从支持 IDB 的环境写入的）
-        data = idbData;
+    // ========== 启动时两处副本对齐 ==========
+    // initStorage 已经把 IndexedDB 和 localStorage 都读出来、挑出较新的那份；
+    // 这里只负责"采用它 + 补齐迁移 + 把较新的那份写回两处"。
+    initStorage().then(async (picked) => {
+      if (picked && picked.modules) {
+        data = picked;
         // 重新跑迁移和校验
         const fromVersion = typeof data.schemaVersion === 'number' ? data.schemaVersion : 0;
         runMigrations(data, fromVersion, CURRENT_SCHEMA_VERSION);
@@ -358,12 +403,12 @@
         renderModule(activeModule);
         updateTotalStats();
         renderNav();
-        console.log('[Storage] IndexedDB 数据已同步到内存');
+        console.log('[Storage] 较新副本已同步到内存 (_rev=' + dataRev(data) + ')');
       }
-      // 启动后把当前数据写回 IndexedDB（确保双写一致）
+      // 启动后把当前数据写回两处（确保双写一致，并给两份都打上时间戳）
       await persistData(data);
     }).catch(e => {
-      console.log('[Storage] IndexedDB 同步失败:', e);
+      console.log('[Storage] 启动同步失败:', e);
     });
 
     // 注意：这里必须是 let。以前是 const，只在启动时算一次；手机 PWA 常驻后台跨过午夜后，
@@ -415,6 +460,7 @@
     let shoppingEditId = null;
     let shoppingPracticality = 3;
     let shoppingHappiness = 4;
+    let financeTxExpanded = false;   // 财务交易列表是否展开全部（超过 20 笔时可点）
     let qaData = null;
     let qaLoading = false;
     let qaFilter = '全部';
@@ -779,7 +825,7 @@
         if (!Array.isArray(saved.modules.daily.tomorrowPlans)) saved.modules.daily.tomorrowPlans = [];
         if (!saved.modules.finance) saved.modules.finance = {};
         const fin = saved.modules.finance;
-        if (fin.targetAmount === undefined) fin.targetAmount = 10000;
+        if (fin.targetAmount === undefined) fin.targetAmount = 30000000;
         if (fin.currentAmount === undefined) fin.currentAmount = 0;
         if (fin.monthlyBudget === undefined) fin.monthlyBudget = 0;
         if (!fin.transactions) fin.transactions = [];
@@ -838,6 +884,40 @@
           ];
         }
         fromVersion = 1;
+      }
+
+      if (fromVersion < 2) {
+        // V1 → V2：目标金额的旧占位默认值是 10000，而实际存款是千万级，
+        // 「目标 1 万 · 已达成」没有任何意义。只有目标恰好还是这个占位值时才提升，
+        // 用户自己设过的数字（哪怕真的是 1 万）不动。
+        const fin = saved.modules && saved.modules.finance;
+        if (fin && Number(fin.targetAmount) === 10000) {
+          fin.targetAmount = 30000000;
+          console.log('[Migration] 目标金额占位值 10000 → 30000000');
+        }
+        fromVersion = 2;
+      }
+
+      if (fromVersion < 3) {
+        // V2 → V3：出厂那套存款资产只合计 2600 万，漏了 85 万活钱，于是"总余额"永远少一截。
+        // 只有当前资产还是完完整整那 6 项、金额一个都没改过，才补上这 85 万；
+        // 用户自己加过、改过、删过的资产一律不动（宁可少给，不能覆盖真实数据）。
+        const fin = saved.modules && saved.modules.finance;
+        const dep = fin && Array.isArray(fin.deposits) ? fin.deposits : null;
+        const OLD_DEFAULTS = [
+          ['dep_1', 12000000], ['dep_2', 5000000], ['dep_3', 1500000],
+          ['dep_4', 1500000], ['dep_5', 1000000], ['dep_6', 5000000]
+        ];
+        const pristine = !!dep && dep.length === OLD_DEFAULTS.length
+          && OLD_DEFAULTS.every(([id, amt]) => {
+            const d = dep.find(x => x && x.id === id);
+            return d && Number(d.amount) === amt;
+          });
+        if (pristine) {
+          dep.push({ id: 'dep_7', name: '活期 / 现金（随时可用）', bank: '活期账户', term: '活期', amount: 850000, rate: 0.003 });
+          console.log('[Migration] 存款资产补上 85 万活钱（出厂配置漏项），合计 2685 万');
+        }
+        fromVersion = 3;
       }
 
       saved.schemaVersion = toVersion;
@@ -1113,12 +1193,21 @@
         bar.id = 'updateBanner';
         bar.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:linear-gradient(90deg,#64ffda,#00d4ff);color:#0f0f23;padding:10px 16px;font-size:14px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:12px;transform:translateY(-100%);transition:transform 0.3s ease;box-shadow:0 2px 12px rgba(0,212,255,0.3);';
         bar.innerHTML = '<span>🎉 发现新版本，点击更新</span><button style="background:#0f0f23;color:#64ffda;border:none;padding:6px 14px;border-radius:20px;font-size:13px;font-weight:600;cursor:pointer;">立即更新</button>';
-        bar.querySelector('button').onclick = () => {
-          // 强制跳过等待并刷新
-          if (navigator.serviceWorker.controller) {
-            navigator.serviceWorker.controller.postMessage({ action: 'skipWaiting' });
+        bar.querySelector('button').onclick = async () => {
+          // 关键：skipWaiting 必须发给"等待中的新 worker"。
+          // 以前发给 navigator.serviceWorker.controller（当前生效的旧 worker），它收到后
+          // 只是再 skipWaiting 一次，什么也不会发生，于是点了"立即更新"没反应。
+          let waiting = null;
+          try {
+            const reg = await navigator.serviceWorker.getRegistration();
+            waiting = reg && reg.waiting;
+          } catch (e) {}
+          if (waiting) {
+            waiting.postMessage({ action: 'skipWaiting' });
+            setTimeout(() => location.reload(), 1500);   // 激活后 controllerchange 通常会先刷；这里兜底
+          } else {
+            location.reload();
           }
-          location.reload();
         };
         document.body.appendChild(bar);
       }
@@ -1334,7 +1423,7 @@
       sleepHours: { min: 0, max: 24, unit: '小时', label: '睡眠时长' },
       temperature: { min: 34, max: 42, unit: '°C', label: '体温' },
       supplementDosage: { min: 0, max: 5000, unit: 'mg', label: '单次剂量' },
-      financeAmount: { min: -9999999, max: 9999999, unit: '元', label: '金额' }
+      financeAmount: { min: 0.01, max: 9999999, unit: '元', label: '金额' }
     };
 
     function clampValue(value, type) {
@@ -1449,7 +1538,7 @@
             ]
           },
           finance: { 
-            targetAmount: 10000,
+            targetAmount: 30000000,
             currentAmount: 0,
             monthlyBudget: 0,
             transactions: [],
@@ -1684,40 +1773,47 @@
 
     // ========== 财务管理专用函数 ==========
     function formatMoney(num) {
-      return '¥' + Number(num).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      const n = Number(num);
+      if (!Number.isFinite(n)) return '¥0.00';   // 导入的备份里 amount 是 "abc"/null 时不再输出 ¥NaN
+      return '¥' + n.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
 
     function getFinanceStats() {
       const fin = data.modules.finance;
       const target = fin.targetAmount || 0;
-      // 当前存款 = 存款资产总本金 + 全部收支流水净额（与「存款资产」区块实时联动）
-      const deposits = Array.isArray(fin.deposits) ? fin.deposits : [];
-      const depositPrincipal = deposits.reduce((s, d) => s + (Number(d.amount) || 0), 0);
+      // 总存款（总余额）= 存款资产本金 + 已计息收益 + 收支流水净额
+      // 以前只算「本金 + 收支」，下面「存款资产」卡片里算出来的利息没有并进来，
+      // 所以顶部那个数字永远比真实余额少一截（利息是按天累计的，越久差得越多）。
+      const deposit = getDepositStats();
+      const principal = deposit.principal;
+      const interest = deposit.cumulative;
       const txNet = (fin.transactions || []).reduce((s, t) => s + (t.type === 'income' ? (Number(t.amount) || 0) : -(Number(t.amount) || 0)), 0);
-      const current = depositPrincipal + txNet;
+      const current = principal + interest + txNet;
       const budget = fin.monthlyBudget || 0;
-      const pct = target > 0 ? Math.min(100, Math.round(current / target * 100)) : 0;
+      // 存款为负时不再出现负百分比；没设目标就显示 0%
+      const pct = target > 0 ? Math.max(0, Math.min(100, Math.round(current / target * 100))) : 0;
       const remaining = Math.max(0, target - current);
       const txs = fin.transactions || [];
       const now = new Date();
       const monthTxs = txs.filter(t => {
-        const d = new Date(t.date + 'T00:00:00');
+        const d = new Date(String(t.date || '') + 'T00:00:00');
+        if (isNaN(d.getTime())) return false;   // 缺 date 的脏数据不参与本月统计，也不能让整页崩
         return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
       });
-      const monthIncome = monthTxs.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
-      const monthExpense = monthTxs.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+      const monthIncome = monthTxs.filter(t => t.type === 'income').reduce((s, t) => s + (Number(t.amount) || 0), 0);
+      const monthExpense = monthTxs.filter(t => t.type === 'expense').reduce((s, t) => s + (Number(t.amount) || 0), 0);
       const monthSpent = monthExpense;
       const budgetRemaining = Math.max(0, budget - monthSpent);
       const budgetPct = budget > 0 ? Math.min(100, Math.round(monthSpent / budget * 100)) : 0;
       const categoryMap = {};
       monthTxs.filter(t => t.type === 'expense').forEach(t => {
         const cat = t.category || '其他';
-        categoryMap[cat] = (categoryMap[cat] || 0) + t.amount;
+        categoryMap[cat] = (categoryMap[cat] || 0) + (Number(t.amount) || 0);
       });
       const expenseCategories = Object.entries(categoryMap)
         .map(([name, amount]) => ({ name: name, amount: amount }))
         .sort((a, b) => b.amount - a.amount);
-      return { target, current, budget, pct, remaining, txs, monthIncome, monthExpense, monthSpent, budgetRemaining, budgetPct, expenseCategories };
+      return { target, principal, interest, txNet, current, budget, pct, remaining, txs, monthIncome, monthExpense, monthSpent, budgetRemaining, budgetPct, expenseCategories };
     }
 
     function getFinanceTrend() {
@@ -1731,12 +1827,13 @@
       }
       txs.forEach(tx => {
         if (!tx.date) return;
-        const d = new Date(tx.date + 'T00:00:00');
+        const d = new Date(String(tx.date) + 'T00:00:00');
+        if (isNaN(d.getTime())) return;
         const key = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
         const month = months.find(m => m.key === key);
         if (!month) return;
-        if (tx.type === 'income') month.income += tx.amount;
-        else month.expense += tx.amount;
+        if (tx.type === 'income') month.income += (Number(tx.amount) || 0);
+        else month.expense += (Number(tx.amount) || 0);
       });
       return months;
     }
@@ -1844,7 +1941,8 @@
       const amountCheck = clampValue(amountRaw, 'financeAmount');
       if (!amountCheck.valid) { alert(amountCheck.msg); return; }
       const amount = amountCheck.value;
-      if (amount === 0) { alert('金额不能为 0'); return; }
+      // 双保险：支出填负数会变成"存款 +100"，这里直接拦死
+      if (!(amount > 0)) { alert('金额必须大于 0'); return; }
 
       const tx = {
         id: Date.now(),
@@ -1887,9 +1985,12 @@
     }
 
     // ========== 财务管理渲染 ==========
+    // 交易列表：默认显示最近 20 笔，超出部分可「展开全部」（以前写死 slice(0,20)，
+    // 第 21 笔起既看不见也删不掉，而标题却写着"共 N 笔"）
     function renderTxListHtml(stats) {
-      const recentTxs = stats.txs.slice(0, 20);
-      if (recentTxs.length === 0) {
+      const allTxs = stats.txs || [];
+      const shown = financeTxExpanded ? allTxs : allTxs.slice(0, 20);
+      if (shown.length === 0) {
         return `
           <div class="empty-state" style="padding:30px 20px">
             <div class="big" style="font-size:36px">📒</div>
@@ -1897,18 +1998,19 @@
           </div>
         `;
       }
-      return recentTxs.map(tx => {
+      return shown.map(tx => {
         const isIncome = tx.type === 'income';
         const color = isIncome ? '#00e676' : '#ff5252';
         const sign = isIncome ? '+' : '-';
-        const txDate = tx.date === today ? '今天' : tx.date.slice(5);
+        const dateStr = String(tx.date || '');
+        const txDate = dateStr === today ? '今天' : (dateStr.length >= 10 ? dateStr.slice(5) : '无日期');
         return `
           <div class="tx-item" onclick="deleteTransaction(${tx.id})" title="点击删除">
             <div class="tx-left">
               <div class="tx-icon" style="background:${isIncome ? 'rgba(0,230,118,0.15)' : 'rgba(255,82,82,0.15)'};border-color:${isIncome ? 'rgba(0,230,118,0.25)' : 'rgba(255,82,82,0.25)'};color:${color}">${isIncome ? '↓' : '↑'}</div>
               <div class="tx-info">
                 <div class="tx-name">${escapeHtml(tx.note || (isIncome ? '收入' : '支出'))}</div>
-                <div class="tx-date">${txDate} · ${escapeHtml(tx.category || '其他')}</div>
+                <div class="tx-date">${escapeHtml(txDate)} · ${escapeHtml(tx.category || '其他')}</div>
               </div>
             </div>
             <div class="tx-amount" style="color:${color}">${sign}${formatMoney(tx.amount)}</div>
@@ -1917,22 +2019,31 @@
       }).join('');
     }
 
+    function toggleFinanceTxExpanded() {
+      financeTxExpanded = !financeTxExpanded;
+      if (activeModule === 'finance') renderModule('finance');
+    }
+
+    function renderTxSectionInnerHtml(stats) {
+      const total = (stats.txs || []).length;
+      return `
+        <div class="tx-section-header">
+          <span class="tx-section-title">📝 最近记录</span>
+          <span class="tx-section-count">共 ${total} 笔</span>
+        </div>
+        <div class="tx-list">${renderTxListHtml(stats)}</div>
+        ${total > 20 ? `<button class="tx-toggle-btn" onclick="toggleFinanceTxExpanded()">${financeTxExpanded ? '收起，只看最近 20 笔' : '展开全部 ' + total + ' 笔'}</button>` : ''}
+      `;
+    }
+
     function updateFinanceInPlace() {
-      const txSection = document.querySelector('.tx-section');
+      const stats = getFinanceStats();
+      const txSection = document.getElementById('txSection');
       if (!txSection) {
         renderModule('finance');
         return;
       }
-      const stats = getFinanceStats();
-      txSection.innerHTML = `
-        <div class="tx-section-header">
-          <span class="tx-section-title">📝 最近记录</span>
-          <span class="tx-section-count">共 ${stats.txs.length} 笔</span>
-        </div>
-        <div class="tx-list">
-          ${renderTxListHtml(stats)}
-        </div>
-      `;
+      txSection.innerHTML = renderTxSectionInnerHtml(stats);
       const amountEl = document.getElementById('currentAmountDisplay');
       if (amountEl) amountEl.textContent = formatMoney(stats.current);
       const todayTxs = (stats.txs || []).filter(t => t.date === today);
@@ -1944,23 +2055,31 @@
       if (todayIncomeEl) todayIncomeEl.textContent = formatMoney(todayIncome);
       const todayCountEl = document.getElementById('todayTxCount');
       if (todayCountEl) todayCountEl.textContent = String(todayTxs.length);
-      const cardSub = document.querySelector('.finance-card-sub');
-      if (cardSub) {
-        cardSub.innerHTML = `
-          <span>目标 ${formatMoney(stats.target)}</span>
-          <span style="color:${stats.remaining > 0 ? '#ff9f43' : '#00e676'}">${stats.remaining > 0 ? '还差 ' + formatMoney(stats.remaining) : '已达成 🎉'}</span>
+      const breakdownEl = document.getElementById('financeBalanceBreakdown');
+      if (breakdownEl) {
+        breakdownEl.innerHTML = `
+          <span>本金 ${formatMoney(stats.principal)}</span>
+          <span>利息 +${formatMoney(stats.interest)}</span>
+          <span>收支 ${stats.txNet >= 0 ? '+' : '−'}${formatMoney(Math.abs(stats.txNet))}</span>
+        `;
+      }
+      const targetSub = document.getElementById('financeTargetSub');
+      if (targetSub) {
+        targetSub.innerHTML = `
+          <span>${stats.target > 0 ? '目标 ' + formatMoney(stats.target) : '未设置目标（点下方「设目标」）'}</span>
+          <span style="color:${stats.remaining > 0 ? '#ff9f43' : '#00e676'}">${stats.target <= 0 ? '' : (stats.remaining > 0 ? '还差 ' + formatMoney(stats.remaining) : '已达成 🎉')}</span>
         `;
       }
       const fill = document.querySelector('.finance-progress-fill');
       if (fill) fill.style.width = stats.pct + '%';
       const text = document.querySelector('.finance-progress-text');
       if (text) text.textContent = stats.pct + '%';
-      const budgetCard = document.querySelector('.budget-card');
-      if (budgetCard) budgetCard.outerHTML = renderBudgetCardHtml(stats);
-      const categorySection = document.querySelector('.category-section');
-      if (categorySection) categorySection.outerHTML = renderCategorySectionHtml(stats);
-      const trendSection = document.querySelector('.trend-section');
-      if (trendSection) trendSection.outerHTML = renderFinanceTrendHtml();
+      const budgetWrap = document.getElementById('financeBudgetWrap');
+      if (budgetWrap) budgetWrap.innerHTML = renderBudgetCardHtml(stats);
+      const categoryWrap = document.getElementById('financeCategoryWrap');
+      if (categoryWrap) categoryWrap.innerHTML = renderCategorySectionHtml(stats);
+      const trendWrap = document.getElementById('financeTrendWrap');
+      if (trendWrap) trendWrap.innerHTML = renderFinanceTrendHtml();
       const mp = document.querySelector('.module-title-bar .m-progress');
       if (mp) mp.textContent = stats.pct + '%';
     }
@@ -2022,7 +2141,8 @@
         { id: 'dep_3', name: '个人大额存单', bank: '工商银行', term: '5年', amount: 1500000, rate: 0.016 },
         { id: 'dep_4', name: '个人大额存单', bank: '中国银行', term: '5年', amount: 1500000, rate: 0.016 },
         { id: 'dep_5', name: '7天通知存款', bank: '工商银行', term: '活期', amount: 1000000, rate: 0.003 },
-        { id: 'dep_6', name: '可转让大额存单（3个月滚动）', bank: '中国银行', term: '3个月', amount: 5000000, rate: 0.009 }
+        { id: 'dep_6', name: '可转让大额存单（3个月滚动）', bank: '中国银行', term: '3个月', amount: 5000000, rate: 0.009 },
+        { id: 'dep_7', name: '活期 / 现金（随时可用）', bank: '活期账户', term: '活期', amount: 850000, rate: 0.003 }
       ];
     }
 
@@ -2249,7 +2369,6 @@
       const stats = getFinanceStats();
       const cfg = MODULE_CONFIG.finance;
 
-      const txHtml = renderTxListHtml(stats);
       const todayTxs = (stats.txs || []).filter(t => t.date === today);
       const todayExpense = todayTxs.filter(t => t.type === 'expense').reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
       const todayIncome = todayTxs.filter(t => t.type === 'income').reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
@@ -2267,17 +2386,22 @@
         <!-- 财务总览卡片 -->
         <div class="finance-overview">
           <div class="finance-card main-card">
-            <div class="finance-card-label">💰 当前存款</div>
+            <div class="finance-card-label">💰 总存款（总余额）</div>
             <div class="finance-card-value" id="currentAmountDisplay">${formatMoney(stats.current)}</div>
-            <div class="finance-card-sub">
-              <span>目标 ${formatMoney(stats.target)}</span>
-              <span style="color:${stats.remaining > 0 ? '#ff9f43' : '#00e676'}">${stats.remaining > 0 ? '还差 ' + formatMoney(stats.remaining) : '已达成 🎉'}</span>
+            <div class="finance-card-sub" id="financeBalanceBreakdown">
+              <span>本金 ${formatMoney(stats.principal)}</span>
+              <span>利息 +${formatMoney(stats.interest)}</span>
+              <span>收支 ${stats.txNet >= 0 ? '+' : '−'}${formatMoney(Math.abs(stats.txNet))}</span>
             </div>
             <div class="finance-progress-wrap">
               <div class="finance-progress-bar">
                 <div class="finance-progress-fill" style="width:${stats.pct}%"></div>
               </div>
               <div class="finance-progress-text">${stats.pct}%</div>
+            </div>
+            <div class="finance-card-sub" id="financeTargetSub">
+              <span>${stats.target > 0 ? '目标 ' + formatMoney(stats.target) : '未设置目标（点下方「设目标」）'}</span>
+              <span style="color:${stats.remaining > 0 ? '#ff9f43' : '#00e676'}">${stats.target <= 0 ? '' : (stats.remaining > 0 ? '还差 ' + formatMoney(stats.remaining) : '已达成 🎉')}</span>
             </div>
           </div>
           <div class="finance-card sub-card today-card">
@@ -2290,8 +2414,17 @@
           </div>
         </div>
 
+        <!-- 本月支出预算 -->
+        <div id="financeBudgetWrap">${renderBudgetCardHtml(stats)}</div>
+
         <!-- 存款资产与每日收益记账 -->
         ${renderDepositSectionHtml()}
+
+        <!-- 本月支出分类 -->
+        <div id="financeCategoryWrap">${renderCategorySectionHtml(stats)}</div>
+
+        <!-- 近 6 月收支趋势 -->
+        <div id="financeTrendWrap">${renderFinanceTrendHtml()}</div>
 
         <!-- 快捷操作 -->
         <div class="finance-actions">
@@ -2314,14 +2447,8 @@
         </div>
 
         <!-- 交易记录 -->
-        <div class="tx-section">
-          <div class="tx-section-header">
-            <span class="tx-section-title">📝 最近记录</span>
-            <span class="tx-section-count">共 ${stats.txs.length} 笔</span>
-          </div>
-          <div class="tx-list">
-            ${txHtml}
-          </div>
+        <div class="tx-section" id="txSection">
+          ${renderTxSectionInnerHtml(stats)}
         </div>
       `;
     }
@@ -2358,7 +2485,16 @@
 
       const msg = info.join('\n');
       console.log(msg);
-      alert(msg);
+      // 以前这里只 alert 一堆文本，从不给 diagOverlay 加 show，
+      // 于是弹窗里那个「⚠️ 重置所有数据」按钮根本没有入口。
+      const content = document.getElementById('diagContent');
+      const overlay = document.getElementById('diagOverlay');
+      if (content && overlay) {
+        content.textContent = msg;
+        overlay.classList.add('show');
+      } else {
+        alert(msg);
+      }
     }
 
     const BACKUP_KEY = LS_KEY + '_backups';
@@ -5831,8 +5967,15 @@
         return;
       }
 
-      const cats = ['全部'].concat(Array.from(new Set((qaData.questions || []).map(q => q.category).filter(Boolean))));
-      const filtered = (qaData.questions || []).filter(q => qaFilter === '全部' || q.category === qaFilter);
+      // 新条目是追加在 questions.json 末尾的，渲染时按日期倒序（同一天按 id 倒序），
+      // 让最新的问题排在最上面；不改文件里的顺序，避免和 git diff 互相打架。
+      const allQuestions = (qaData.questions || []).slice().sort((a, b) => {
+        const byDate = String(b.date || '').localeCompare(String(a.date || ''));
+        if (byDate !== 0) return byDate;
+        return (Number(b.id) || 0) - (Number(a.id) || 0);
+      });
+      const cats = ['全部'].concat(Array.from(new Set(allQuestions.map(q => q.category).filter(Boolean))));
+      const filtered = allQuestions.filter(q => qaFilter === '全部' || q.category === qaFilter);
       const cardsHtml = filtered.map(q => {
         const open = qaExpanded.has(q.id);
         const answerHtml = (q.answer || []).map(p => '<p>' + escapeHtml(p) + '</p>').join('');
@@ -6874,10 +7017,25 @@
       }
     }
 
+    // 光标还在输入框里、且已经写了东西时，Esc 先问一句再关
+    function overlayHasUnsavedDraft(overlayId) {
+      const ae = document.activeElement;
+      if (!ae) return false;
+      const overlay = document.getElementById(overlayId);
+      if (!overlay || !overlay.contains(ae)) return false;
+      const tag = (ae.tagName || '').toUpperCase();
+      if (tag !== 'INPUT' && tag !== 'TEXTAREA') return false;
+      return String(ae.value || '').trim().length > 0;
+    }
+
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
+        // 中文输入法按 Esc 取消候选词时也会触发 keydown（isComposing / keyCode 229），
+        // 以前这里直接关弹窗，写了一半的内容全丢。
+        if (e.isComposing || e.keyCode === 229) return;
         const visible = getVisibleOverlay();
         if (visible) {
+          if (overlayHasUnsavedDraft(visible.id) && !confirm('这个窗口里还有没保存的内容，确定关闭吗？')) return;
           e.preventDefault();
           closeOverlayById(visible.id);
         }
@@ -6887,8 +7045,11 @@
         e.preventDefault();
         unlockApp();
       }
-      // 快速导航：Ctrl/Cmd + 数字键切换模块
+      // 快速导航：Ctrl/Cmd + 数字键切换模块（弹窗开着或在输入框里时不抢键）
       if ((e.ctrlKey || e.metaKey) && e.key >= '1' && e.key <= '9') {
+        const ae = document.activeElement;
+        const typing = ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.isContentEditable);
+        if (typing || getVisibleOverlay()) return;
         e.preventDefault();
         const idx = parseInt(e.key, 10) - 1;
         const keys = Object.keys(MODULE_ORDER);

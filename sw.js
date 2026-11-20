@@ -1,4 +1,4 @@
-const CACHE_NAME = 'growth-checkin-v113';
+const CACHE_NAME = 'growth-checkin-v115';
 const APP_SHELL = [
   './',
   './index.html',
@@ -14,7 +14,7 @@ const APP_SHELL = [
 // 不同资源的网络超时配置
 const TIMEOUT = {
   navigate: 15000,   // 导航绝不能因为"慢"就返回错误页
-  static: 3000,      // CSS/JS/图片：缓存优先，网络只用于后台更新
+  static: 3000,      // CSS/JS/图片
   data: 5000,        // JSON 数据：允许稍长一点
   default: 6000
 };
@@ -107,20 +107,41 @@ async function handleNavigate(request) {
       return networkRes;
     }
   } catch (e) {}
-  // 网络失败 → 回退缓存 → 最后给错误页
-  const shell = cached || await matchAnyCache(new Request(absUrl('./index.html')), false);
-  return shell || Response.error();
+  // 网络失败 → 回退缓存 → 再回退"正在更新"页 → 最后才是浏览器的错误页
+  const shell = cached
+    || await matchAnyCache(new Request(absUrl('./index.html')), false)
+    || await matchAnyCache(new Request(absUrl('./')), false);
+  if (shell) return shell;
+  const recovery = await matchAnyCache(new Request(absUrl('./recovery.html')), false);
+  return recovery || Response.error();
 }
 
-// 2. 静态资源（JS/CSS/图片/字体）→ Cache First（快，后台更新）
+// 2. 静态资源 → 代码文件网络优先，图片等缓存优先
+//    以前 main.js / app.css 是"缓存优先 + 后台更新"，于是发布新版本后
+//    手机上第一次打开跑的还是旧代码，要再刷新一次才更新，甚至出现新 HTML 配旧 JS。
 async function handleStatic(request) {
+  const url = new URL(request.url);
+  const isCode = /\.(js|css)$/.test(url.pathname);
+
+  if (isCode) {
+    try {
+      const fresh = await withTimeout(fetch(new Request(request, { cache: 'no-cache' })), TIMEOUT.static);
+      if (fresh && fresh.ok) {
+        backgroundUpdate(request, fresh);
+        return fresh;
+      }
+    } catch (e) {}
+    const cached = await matchAnyCache(request, false);
+    if (cached) return cached;
+    return Response.error();
+  }
+
   const cached = await matchAnyCache(request, false);
   if (cached) {
     // 有缓存先返回，同时后台检查更新
     fetch(request).then(backgroundUpdate.bind(null, request)).catch(() => {});
     return cached;
   }
-  // 没缓存 → 等网络
   try {
     const networkRes = await withTimeout(fetch(request), TIMEOUT.static);
     if (networkRes && networkRes.ok) {
