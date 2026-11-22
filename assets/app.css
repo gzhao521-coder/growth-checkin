@@ -85,3 +85,9 @@
   .bg-swirl{display:block;opacity:.42;filter:blur(54px);--bg-duration:26s}
   .bg-mesh{opacity:1;filter:blur(38px)}
 }
+
+/* ===== v120 编辑入口更明显 ===== */
+/* 卡片右侧的 ✏️ / × 原来是 #4a4a6a（深底上对比度约 2:1），手机上基本看不见，
+   所以"想改现有项目"时找不到入口。提亮 + 放大点击区域。 */
+.edit-btn,.del-btn{color:#a8b2d1;width:36px;height:36px;font-size:16px}
+.edit-btn:active,.del-btn:active{background:#ffffff1a}

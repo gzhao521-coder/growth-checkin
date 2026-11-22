@@ -76,7 +76,7 @@
 
     const LS_KEY = 'myCheckinApp_v10';
     // 单一版本号来源：诊断信息、备份 payload、sw.js 的 CACHE_NAME 都应对齐这里
-    const APP_VERSION = 'v119';
+    const APP_VERSION = 'v120';
     const CURRENT_SCHEMA_VERSION = 3;
     // 存储安全状态。必须在 `let data = loadData();` 之前初始化：
     // loadData / saveData / validateAndRepairData 都会用到它们，放在后面会踩暂时性死区（TDZ）直接报错。
@@ -2961,16 +2961,26 @@
       editState = { kind: 'habit', moduleId: moduleId, id: id };
       document.getElementById('editModalTitle').textContent = '编辑目标';
       let extra = '';
-      if (h.type === 'cycle') {
+      editCycleDraft = null;
+      if (h.type === 'cycle' || h.type === 'period') {
+        // 现有周期项目和"新增"用同一套表单：可选类型（间隔/轮转），切换时字段跟着换，
+        // 并且允许把已有项目从「轮转」改成「间隔」（或反过来）。
+        editCycleDraft = {
+          type: h.type,
+          cycleLength: h.cycleLength || 4,
+          cycleStates: Array.isArray(h.cycleStates) && h.cycleStates.length ? h.cycleStates.slice() : ['休息', '白班', '夜班', '下夜班'],
+          cycleStart: h.cycleStart || getTodayStr(),
+          period: h.period || 5,
+          baseDate: h.baseDate || getTodayStr()
+        };
         extra = `
-          <div class="fund-form-row"><label>周期天数</label><input type="number" class="fund-form-input" id="editCycleLength" min="1" value="${h.cycleLength}"></div>
-          <div class="fund-form-row"><label>状态列表（用逗号分隔）</label><input type="text" class="fund-form-input" id="editCycleStates" value="${escapeHtml((h.cycleStates || []).join(','))}"></div>
-          <div class="fund-form-row"><label>周期开始日期</label><input type="date" class="fund-form-input" id="editCycleStart" value="${h.cycleStart || ''}"></div>
-        `;
-      } else if (h.type === 'period') {
-        extra = `
-          <div class="fund-form-row"><label>间隔天数</label><input type="number" class="fund-form-input" id="editPeriod" min="1" value="${h.period}"></div>
-          <div class="fund-form-row"><label>基准日期</label><input type="date" class="fund-form-input" id="editBaseDate" value="${h.baseDate || ''}"></div>
+          <div class="fund-form-row"><label>类型</label>
+            <select class="fund-form-input" id="editCycleType" onchange="renderEditCycleFields()">
+              <option value="period" ${h.type === 'period' ? 'selected' : ''}>间隔打卡（每 N 天一次）</option>
+              <option value="cycle" ${h.type === 'cycle' ? 'selected' : ''}>轮转状态（多个状态按天循环）</option>
+            </select>
+          </div>
+          <div id="editCycleFields"></div>
         `;
       }
       document.getElementById('editFormFields').innerHTML = `
@@ -2978,9 +2988,31 @@
         <div class="fund-form-row"><label>图标</label><div class="icon-picker" id="editIconPicker"></div></div>
         ${extra}
       `;
+      if (editCycleDraft) renderEditCycleFields();
       editSelectedIcon = h.icon || '🔥';
       renderIconPicker('editIconPicker', editSelectedIcon, 'editSelectedIcon');
       document.getElementById('editOverlay').classList.add('show');
+    }
+
+    // 编辑时的周期字段（与新增弹窗同款，按类型切换）
+    let editCycleDraft = null;
+
+    function renderEditCycleFields() {
+      const sel = document.getElementById('editCycleType');
+      const box = document.getElementById('editCycleFields');
+      if (!sel || !box || !editCycleDraft) return;
+      if (sel.value === 'cycle') {
+        box.innerHTML = `
+          <div class="fund-form-row"><label>周期天数</label><input type="number" class="fund-form-input" id="editCycleLength" min="1" max="60" value="${editCycleDraft.cycleLength}"></div>
+          <div class="fund-form-row"><label>状态列表（逗号分隔，数量要等于周期天数）</label><input type="text" class="fund-form-input" id="editCycleStates" value="${escapeHtml(editCycleDraft.cycleStates.join(','))}"></div>
+          <div class="fund-form-row"><label>起始日期</label><input type="date" class="fund-form-input" id="editCycleStart" value="${editCycleDraft.cycleStart}"></div>
+        `;
+      } else {
+        box.innerHTML = `
+          <div class="fund-form-row"><label>间隔天数</label><input type="number" class="fund-form-input" id="editPeriod" min="1" max="365" value="${editCycleDraft.period}"></div>
+          <div class="fund-form-row"><label>基准日期（从这天算起，每 N 天一次）</label><input type="date" class="fund-form-input" id="editBaseDate" value="${editCycleDraft.baseDate}"></div>
+        `;
+      }
     }
 
     function openManifestEdit(goalId) {
@@ -3045,21 +3077,33 @@
         if (!name) { alert('名称不能为空'); return; }
         h.name = name;
         h.icon = editSelectedIcon || h.icon;
-        if (h.type === 'cycle') {
-          const cycleLength = parseInt(document.getElementById('editCycleLength').value, 10);
-          const states = document.getElementById('editCycleStates').value.split(/[,，]/).map(s => s.trim()).filter(Boolean);
-          const start = document.getElementById('editCycleStart').value;
-          if (!cycleLength || cycleLength < 1) { alert('周期天数不正确'); return; }
-          if (!states.length) { alert('状态列表不能为空'); return; }
-          h.cycleLength = cycleLength;
-          h.cycleStates = states;
-          if (start) h.cycleStart = start;
-        } else if (h.type === 'period') {
-          const period = parseInt(document.getElementById('editPeriod').value, 10);
-          const baseDate = document.getElementById('editBaseDate').value;
-          if (!period || period < 1) { alert('间隔天数不正确'); return; }
-          h.period = period;
-          if (baseDate) h.baseDate = baseDate;
+        // 周期类项目：类型可在「间隔」和「轮转」之间切换，切换后字段跟着变
+        const typeSel = document.getElementById('editCycleType');
+        if (typeSel) {
+          if (typeSel.value === 'cycle') {
+            const cycleLength = parseInt(document.getElementById('editCycleLength').value, 10);
+            const states = document.getElementById('editCycleStates').value.split(/[,，、\s]+/).map(s => s.trim()).filter(Boolean);
+            const start = document.getElementById('editCycleStart').value;
+            if (!cycleLength || cycleLength < 1) { alert('周期天数不正确'); return; }
+            if (states.length !== cycleLength) {
+              alert('状态数量（' + states.length + '）要和周期天数（' + cycleLength + '）一致');
+              return;
+            }
+            h.type = 'cycle';
+            h.cycleLength = cycleLength;
+            h.cycleStates = states;
+            h.cycleStart = start || h.cycleStart || getTodayStr();
+            delete h.period; delete h.baseDate; delete h.notes;
+          } else {
+            const period = parseInt(document.getElementById('editPeriod').value, 10);
+            const baseDate = document.getElementById('editBaseDate').value;
+            if (!period || period < 1) { alert('间隔天数不正确'); return; }
+            h.type = 'period';
+            h.period = period;
+            h.baseDate = baseDate || h.baseDate || getTodayStr();
+            delete h.cycleLength; delete h.cycleStates; delete h.cycleStart;
+            if (!h.notes) h.notes = {};
+          }
         }
         saveData();
         renderModule(activeModule);
