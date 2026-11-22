@@ -1,4 +1,25 @@
     // ========== PWA 配置 ==========
+    // 紧急通道：在地址后面加 ?fresh=1 打开，会注销 Service Worker、清空全部缓存后重载。
+    // 用来解决"更新被旧缓存卡死、怎么重开都是旧版本"的情况（数据在 localStorage/IndexedDB，
+    // 不会因为清缓存而丢失，但为稳妥仍建议先导出一份备份）。
+    if (/[?&]fresh=1(&|$)/.test(location.search)) {
+      (async () => {
+        try {
+          if ('serviceWorker' in navigator) {
+            const regs = await navigator.serviceWorker.getRegistrations();
+            await Promise.all(regs.map(r => r.unregister()));
+          }
+          if (window.caches) {
+            const keys = await caches.keys();
+            await Promise.all(keys.map(k => caches.delete(k)));
+          }
+        } catch (e) { console.log('清除缓存失败:', e); }
+        const url = new URL(location.href);
+        url.searchParams.delete('fresh');
+        url.searchParams.set('fresh-done', '1');
+        location.replace(url.toString());
+      })();
+    }
     if ('serviceWorker' in navigator) {
         let refreshing = false;
         navigator.serviceWorker.addEventListener('controllerchange', () => {
@@ -55,7 +76,7 @@
 
     const LS_KEY = 'myCheckinApp_v10';
     // 单一版本号来源：诊断信息、备份 payload、sw.js 的 CACHE_NAME 都应对齐这里
-    const APP_VERSION = 'v118';
+    const APP_VERSION = 'v119';
     const CURRENT_SCHEMA_VERSION = 3;
     // 存储安全状态。必须在 `let data = loadData();` 之前初始化：
     // loadData / saveData / validateAndRepairData 都会用到它们，放在后面会踩暂时性死区（TDZ）直接报错。

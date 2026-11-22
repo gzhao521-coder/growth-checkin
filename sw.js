@@ -1,4 +1,4 @@
-const CACHE_NAME = 'growth-checkin-v118';
+const CACHE_NAME = 'growth-checkin-v119';
 const APP_SHELL = [
   './',
   './index.html',
@@ -14,8 +14,9 @@ const APP_SHELL = [
 // 不同资源的网络超时配置
 const TIMEOUT = {
   navigate: 15000,   // 导航绝不能因为"慢"就返回错误页
-  static: 3000,      // CSS/JS/图片
-  data: 5000,        // JSON 数据：允许稍长一点
+  static: 12000,     // CSS/JS/图片：main.js 有 350KB，慢网下 3 秒根本下不完，
+                     //               超时就会回退旧缓存，等于永远收不到新版本
+  data: 8000,        // JSON 数据：允许稍长一点
   default: 6000
 };
 
