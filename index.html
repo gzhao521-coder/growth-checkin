@@ -260,6 +260,32 @@
     </div>
   </div>
 
+  <!-- 周期项目添加弹窗（间隔天数 / 基准日期 / 轮转周期） -->
+  <div class="overlay" id="cycleAddOverlay" onclick="closeCycleAddModal(event)">
+    <div class="modal" role="dialog" aria-modal="true" onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <h3>➕ 新增周期项目</h3>
+        <button class="close" aria-label="关闭" onclick="closeCycleAddModal()">&times;</button>
+      </div>
+      <div class="fund-form-row">
+        <label>名称</label>
+        <input type="text" class="fund-form-input" id="cycleAddName" maxlength="20" placeholder="如：浇花、喂鱼、上班">
+      </div>
+      <div class="fund-form-row">
+        <label>类型</label>
+        <select class="fund-form-input" id="cycleAddType" onchange="renderCycleAddFields()">
+          <option value="period">间隔打卡（每 N 天一次）</option>
+          <option value="cycle">轮转状态（多个状态按天循环）</option>
+        </select>
+      </div>
+      <div id="cycleAddFields"></div>
+      <div class="modal-actions">
+        <button class="btn-secondary" onclick="closeCycleAddModal()">取消</button>
+        <button class="btn-primary" onclick="saveCycleAdd()">保存</button>
+      </div>
+    </div>
+  </div>
+
   <!-- 显化记录添加弹窗 -->
   <div class="overlay" id="manifestRecordOverlay" onclick="closeManifestRecordModal(event)">
     <div class="modal wide" role="dialog" aria-modal="true" onclick="event.stopPropagation()">

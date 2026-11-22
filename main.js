@@ -53,7 +53,7 @@
 
     const LS_KEY = 'myCheckinApp_v10';
     // 单一版本号来源：诊断信息、备份 payload、sw.js 的 CACHE_NAME 都应对齐这里
-    const APP_VERSION = 'v115';
+    const APP_VERSION = 'v116';
     const CURRENT_SCHEMA_VERSION = 3;
     // 存储安全状态。必须在 `let data = loadData();` 之前初始化：
     // loadData / saveData / validateAndRepairData 都会用到它们，放在后面会踩暂时性死区（TDZ）直接报错。
@@ -1482,6 +1482,91 @@
       return habit.period - mod;
     }
 
+    // ========== 周期打卡：新增项目（间隔天数 / 基准日期 / 轮转周期）==========
+    // 以前 addHabit() 对所有模块都只建 type:'daily'，所以在「周期打卡」里加出来的其实是
+    // 普通每日打卡 —— 既没有间隔天数也没有基准日期，只能事后进"编辑"里补。
+    function openCycleAddModal(prefillName) {
+      const nameEl = document.getElementById('cycleAddName');
+      const typeEl = document.getElementById('cycleAddType');
+      if (!nameEl || !typeEl) return;
+      nameEl.value = prefillName || '';
+      typeEl.value = 'period';
+      renderCycleAddFields();
+      document.getElementById('cycleAddOverlay').classList.add('show');
+      setTimeout(() => nameEl.focus(), 50);
+    }
+
+    function closeCycleAddModal(e) {
+      if (e && e.target && e.target.id !== 'cycleAddOverlay') return;
+      const el = document.getElementById('cycleAddOverlay');
+      if (el) el.classList.remove('show');
+    }
+
+    function renderCycleAddFields() {
+      const typeEl = document.getElementById('cycleAddType');
+      const type = typeEl ? typeEl.value : 'period';
+      const box = document.getElementById('cycleAddFields');
+      if (!box) return;
+      if (type === 'cycle') {
+        box.innerHTML = `
+          <div class="fund-form-row"><label>周期天数</label><input type="number" class="fund-form-input" id="cycleAddLength" min="1" max="60" value="4"></div>
+          <div class="fund-form-row"><label>状态列表（逗号分隔，数量要等于周期天数）</label><input type="text" class="fund-form-input" id="cycleAddStates" value="休息,白班,夜班,下夜班"></div>
+          <div class="fund-form-row"><label>起始日期</label><input type="date" class="fund-form-input" id="cycleAddStart" value="${getTodayStr()}"></div>
+        `;
+      } else {
+        box.innerHTML = `
+          <div class="fund-form-row"><label>间隔天数</label><input type="number" class="fund-form-input" id="cycleAddPeriod" min="1" max="365" value="5"></div>
+          <div class="fund-form-row"><label>基准日期（从这天算起，每 N 天一次）</label><input type="date" class="fund-form-input" id="cycleAddBase" value="${getTodayStr()}"></div>
+        `;
+      }
+    }
+
+    function saveCycleAdd() {
+      const name = (document.getElementById('cycleAddName').value || '').trim();
+      const type = document.getElementById('cycleAddType').value;
+      if (!name) { alert('请填写名称'); return; }
+      const mod = data.modules.cycle;
+      if (!mod) { alert('周期模块数据异常，请先刷新页面'); return; }
+
+      const allHabits = Object.values(data.modules).reduce((acc, m) => acc.concat(m.habits || []), []);
+      const habit = {
+        id: Date.now(),
+        name: name,
+        icon: ICONS[allHabits.length % ICONS.length],
+        type: type,
+        records: []
+      };
+
+      if (type === 'cycle') {
+        const len = parseInt(document.getElementById('cycleAddLength').value, 10);
+        if (!len || len < 1) { alert('周期天数必须 ≥ 1'); return; }
+        const states = (document.getElementById('cycleAddStates').value || '')
+          .split(/[,，、\s]+/).map(s => s.trim()).filter(Boolean);
+        if (states.length !== len) {
+          alert('状态数量（' + states.length + '）要和周期天数（' + len + '）一致');
+          return;
+        }
+        habit.cycleLength = len;
+        habit.cycleStates = states;
+        habit.cycleStart = document.getElementById('cycleAddStart').value || getTodayStr();
+      } else {
+        const period = parseInt(document.getElementById('cycleAddPeriod').value, 10);
+        if (!period || period < 1) { alert('间隔天数必须 ≥ 1'); return; }
+        habit.type = 'period';
+        habit.period = period;
+        habit.baseDate = document.getElementById('cycleAddBase').value || getTodayStr();
+        habit.notes = {};
+      }
+
+      mod.habits.push(habit);
+      saveData();
+      closeCycleAddModal();
+      renderModule('cycle');
+      updateTotalStats();
+      renderNav();
+      showInfoToast('已添加「' + name + '」');
+    }
+
     function getCycleStateClass(state) {
       const map = { '休息': 'rest', '白班': 'work', '夜班': 'night', '下夜班': 'off', '喂食': 'feed', '停喂': 'stop' };
       return map[state] || 'rest';
@@ -1752,6 +1837,13 @@
     function addHabit() {
       const input = document.getElementById('moduleInput');
       const name = input.value.trim();
+      // 周期打卡模块：新增时要设间隔天数/基准日期（或轮转周期），走专用弹窗。
+      // 其他模块保持"输入框回车即建"的轻量流程。
+      if (activeModule === 'cycle') {
+        openCycleAddModal(name);
+        input.value = '';
+        return;
+      }
       if (!name) return;
       const mod = data.modules[activeModule];
       const allHabits = Object.values(data.modules).reduce((acc, m) => acc.concat(m.habits || []), []);
