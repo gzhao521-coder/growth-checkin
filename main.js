@@ -55,7 +55,7 @@
 
     const LS_KEY = 'myCheckinApp_v10';
     // 单一版本号来源：诊断信息、备份 payload、sw.js 的 CACHE_NAME 都应对齐这里
-    const APP_VERSION = 'v117';
+    const APP_VERSION = 'v118';
     const CURRENT_SCHEMA_VERSION = 3;
     // 存储安全状态。必须在 `let data = loadData();` 之前初始化：
     // loadData / saveData / validateAndRepairData 都会用到它们，放在后面会踩暂时性死区（TDZ）直接报错。
@@ -519,11 +519,32 @@
     });
     // 跨天 / 回到前台的处理：修掉"打卡记到昨天"的问题
     document.addEventListener('visibilitychange', () => {
-      if (!document.hidden) { refreshTodayIfChanged(); updateNetworkStatus(); }
+      if (!document.hidden) { refreshTodayIfChanged(); updateNetworkStatus(); checkForUpdate(false); }
     });
-    window.addEventListener('pageshow', () => refreshTodayIfChanged());
-    window.addEventListener('focus', () => refreshTodayIfChanged());
+    window.addEventListener('pageshow', () => { refreshTodayIfChanged(); checkForUpdate(false); });
+    window.addEventListener('focus', () => { refreshTodayIfChanged(); checkForUpdate(false); });
     setInterval(refreshTodayIfChanged, 60000);
+
+    // 回到前台时顺手查一次新版本（原来只在页面加载时查一次，
+    // 手机上 PWA 常驻后台、不重新加载页面，就一直收不到更新）
+    let lastSwUpdateCheck = 0;
+    function checkForUpdate(force) {
+      if (!('serviceWorker' in navigator)) return;
+      const now = Date.now();
+      if (!force && now - lastSwUpdateCheck < 5 * 60 * 1000) return;   // 5 分钟内不重复查
+      lastSwUpdateCheck = now;
+      Promise.resolve()
+        .then(() => navigator.serviceWorker.getRegistration())
+        .then(reg => {
+          if (!reg) return;
+          reg.update().catch(() => {});
+          if (reg.waiting && navigator.serviceWorker.controller) {
+            if (force) reg.waiting.postMessage({ action: 'skipWaiting' });
+            else showUpdateToast();
+          }
+        })
+        .catch(() => {});
+    }
 
     function updateNetworkStatus() {
       const el = document.getElementById('netStatus');
@@ -3443,12 +3464,20 @@
 
     function forceRefresh() {
       if (confirm('确定要刷新页面吗？\n\n这会保留你的打卡数据和离线缓存，只更新页面代码。')) {
-        if ('serviceWorker' in navigator) {
-          navigator.serviceWorker.getRegistrations().then(regs => {
-            regs.forEach(r => r.update());
-          });
-        }
-        location.reload(true);
+        if (!('serviceWorker' in navigator)) { location.reload(); return; }
+        // 以前只是 update() 之后 reload，等待中的新 worker 并没有被激活，
+        // 结果"刷新"了还是旧版本。这里显式把 waiting 的 worker 顶上去。
+        navigator.serviceWorker.getRegistrations().then(async regs => {
+          let hasWaiting = false;
+          for (const reg of regs) {
+            try { await reg.update(); } catch (e) {}
+            if (reg.waiting) {
+              hasWaiting = true;
+              try { reg.waiting.postMessage({ action: 'skipWaiting' }); } catch (e) {}
+            }
+          }
+          setTimeout(() => location.reload(), hasWaiting ? 1200 : 0);
+        }).catch(() => location.reload());
       }
     }
 
