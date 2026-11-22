@@ -74,3 +74,14 @@
       三条柱子看上去是三条贴底的细线。让轨道撑满 .trend-pair 的高度。 */
 .trend-bar-track{align-self:stretch;height:auto;min-height:0}
 .trend-pair{height:100%}
+
+/* ===== v117 背景特效增强 ===== */
+/* 1) 粒子的发光原本被一条 .bg-particle{box-shadow:none} 覆盖掉了，只剩 2~4px 的实心点。
+      恢复光晕，并把不透明度从 .7 提到 .85，才看得出"在飘"。 */
+.bg-particle{opacity:.85;box-shadow:0 0 8px var(--color)}
+/* 2) 手机上原来直接 .bg-swirl{display:none}，只剩一层很淡的渐变网格在动。
+      改成保留旋转光层（降透明度、加模糊，避免抢内容）。 */
+@media (max-width:600px){
+  .bg-swirl{display:block;opacity:.42;filter:blur(54px);--bg-duration:26s}
+  .bg-mesh{opacity:1;filter:blur(38px)}
+}

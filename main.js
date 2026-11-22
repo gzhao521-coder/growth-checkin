@@ -29,17 +29,19 @@
       const wrap = document.getElementById('starDustWrap');
       if (!wrap) return;
       wrap.innerHTML = '';
-      const count = window.innerWidth < 600 ? 10 : 18;
+      // 原来手机只有 10 颗、直径 1.5–3.7px，飞起来几乎看不见，这里提高到能看见但不闹的密度
+      const compact = window.innerWidth < 600;
+      const count = compact ? 24 : 36;
       for (let i = 0; i < count; i++) {
         const star = document.createElement('span');
         star.className = 'bg-particle';
         star.style.setProperty('--x', (Math.random() * 100).toFixed(2) + '%');
         star.style.setProperty('--y', (Math.random() * 100).toFixed(2) + '%');
-        star.style.setProperty('--size', (1.5 + Math.random() * 2.2).toFixed(2) + 'px');
+        star.style.setProperty('--size', (1.8 + Math.random() * 3.0).toFixed(2) + 'px');
         star.style.setProperty('--color', STARDUST_COLORS[i % STARDUST_COLORS.length]);
-        star.style.setProperty('--dx', (Math.random() * 28 - 14).toFixed(1) + 'px');
-        star.style.setProperty('--dy', (Math.random() * 18 - 9).toFixed(1) + 'px');
-        star.style.setProperty('--drift-duration', (8 + Math.random() * 8).toFixed(1) + 's');
+        star.style.setProperty('--dx', (Math.random() * 34 - 17).toFixed(1) + 'px');
+        star.style.setProperty('--dy', (Math.random() * 24 - 12).toFixed(1) + 'px');
+        star.style.setProperty('--drift-duration', (7 + Math.random() * 7).toFixed(1) + 's');
         star.style.setProperty('--twinkle-duration', (2 + Math.random() * 3).toFixed(1) + 's');
         star.style.setProperty('--twinkle-delay', (Math.random() * 4).toFixed(2) + 's');
         wrap.appendChild(star);
@@ -53,7 +55,7 @@
 
     const LS_KEY = 'myCheckinApp_v10';
     // 单一版本号来源：诊断信息、备份 payload、sw.js 的 CACHE_NAME 都应对齐这里
-    const APP_VERSION = 'v116';
+    const APP_VERSION = 'v117';
     const CURRENT_SCHEMA_VERSION = 3;
     // 存储安全状态。必须在 `let data = loadData();` 之前初始化：
     // loadData / saveData / validateAndRepairData 都会用到它们，放在后面会踩暂时性死区（TDZ）直接报错。
@@ -329,7 +331,18 @@
       const on = !getBgMotionEnabled();
       localStorage.setItem(LS_KEY + '_motion', on ? 'on' : 'off');
       applyBgMotion();
+      refreshBgMotionLabel();
       showAchievementToast(on ? '背景动态已开启' : '背景动态已关闭');
+    }
+
+    // 菜单里那个「背景动态」原来是个没有任何状态提示的开关，点一下静默切换，
+    // 关掉后 .bg-mesh / .bg-particles / .bg-swirl 全被 display:none 隐藏，
+    // 看上去就只剩一层很淡的静态渐变 —— 很像"特效坏了"。这里把状态显示出来。
+    function refreshBgMotionLabel() {
+      const el = document.getElementById('bgMotionLabel');
+      if (!el) return;
+      el.textContent = getBgMotionEnabled() ? '背景动态 · 已开' : '背景动态 · 已关';
+      el.style.color = getBgMotionEnabled() ? '' : 'var(--text2)';
     }
 
     const MODULE_CONFIG = {
@@ -1757,6 +1770,7 @@
     function openHeaderMenu() {
       const overlay = document.getElementById('headerMenuOverlay');
       if (overlay) overlay.classList.add('show');
+      refreshBgMotionLabel();
     }
 
     function closeHeaderMenu(e) {
