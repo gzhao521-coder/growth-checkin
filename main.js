@@ -76,7 +76,7 @@
 
     const LS_KEY = 'myCheckinApp_v10';
     // 单一版本号来源：诊断信息、备份 payload、sw.js 的 CACHE_NAME 都应对齐这里
-    const APP_VERSION = 'v122';
+    const APP_VERSION = 'v123';
     const CURRENT_SCHEMA_VERSION = 3;
     // 存储安全状态。必须在 `let data = loadData();` 之前初始化：
     // loadData / saveData / validateAndRepairData 都会用到它们，放在后面会踩暂时性死区（TDZ）直接报错。
@@ -2983,9 +2983,13 @@
           <div id="editCycleFields"></div>
         `;
       }
+      const currentRemark = h.remark !== undefined ? h.remark : (DAILY_HABIT_REMARKS[h.name] || '');
       document.getElementById('editFormFields').innerHTML = `
         <div class="fund-form-row"><label>名称</label><input type="text" class="fund-form-input" id="editName" maxlength="20" value="${escapeHtml(h.name)}"></div>
         <div class="fund-form-row"><label>图标</label><div class="icon-picker" id="editIconPicker"></div></div>
+        <div class="fund-form-row"><label>备注（显示在卡片名称下面，留空则不显示）</label>
+          <input type="text" class="fund-form-input" id="editRemark" maxlength="80" placeholder="例如：早上 7 点起床，晚上 10 点半睡觉" value="${escapeHtml(currentRemark)}">
+        </div>
         ${extra}
       `;
       if (editCycleDraft) renderEditCycleFields();
@@ -3077,6 +3081,9 @@
         if (!name) { alert('名称不能为空'); return; }
         h.name = name;
         h.icon = editSelectedIcon || h.icon;
+        // 备注：留空就是"不要备注"，不再回退成默认文案
+        const remarkEl = document.getElementById('editRemark');
+        if (remarkEl) h.remark = remarkEl.value.trim().slice(0, 80);
         // 周期类项目：类型可在「间隔」和「轮转」之间切换，切换后字段跟着变
         const typeSel = document.getElementById('editCycleType');
         if (typeSel) {
@@ -6347,7 +6354,8 @@
       const isFuel = h.name === '加油';
       const fuelMeta = isFuel ? renderFuelMetaHtml(h) : '';
       const makeupBtn = isFuel ? '' : `<button class="makeup-btn" onclick="openMakeupModal('${moduleId}', ${h.id})" title="补卡">↩</button>`;
-      const remark = h.remark || DAILY_HABIT_REMARKS[h.name] || '';
+      // 有 remark 字段就用它（哪怕是空字符串，表示"用户清空了备注"）；没有才回退默认文案
+      const remark = h.remark !== undefined ? h.remark : (DAILY_HABIT_REMARKS[h.name] || '');
       // 手机上原来一行塞了 图标+文字+打卡+补卡+编辑+删除，文字列被挤成 68px，
       // 名称/奖杯/天数/备注只能各占一行，整张卡变成竖条。这里把次要操作收进 meta 行右侧。
       return `
@@ -6407,6 +6415,7 @@
                 <button class="del-btn" onclick="deleteHabit('${moduleId}', ${h.id})" title="删除">×</button>
               </span>
             </div>
+            ${h.remark ? '<div class="remark">' + escapeHtml(h.remark) + '</div>' : ''}
           </div>
           ${checkBtn}
         </div>
@@ -6444,6 +6453,7 @@
                 <button class="del-btn" onclick="deleteHabit('${moduleId}', ${h.id})" title="删除">×</button>
               </span>
             </div>
+            ${h.remark ? '<div class="remark">' + escapeHtml(h.remark) + '</div>' : ''}
             ${noteHtml}
           </div>
           ${btnHtml}
