@@ -91,3 +91,27 @@
    所以"想改现有项目"时找不到入口。提亮 + 放大点击区域。 */
 .edit-btn,.del-btn{color:#a8b2d1;width:36px;height:36px;font-size:16px}
 .edit-btn:active,.del-btn:active{background:#ffffff1a}
+
+/* ===== v121 打卡卡片重排 ===== */
+/* 手机上（≤480px）卡片一行里有 图标+文字+打卡+补卡+编辑+删除 六个元素，
+   文字列被挤到 68px，名称/奖杯/天数/备注只能各占一行，整张卡变成竖条。
+   这里把次要操作收进天数那一行右侧，文字列独占宽度。 */
+.habit-card{align-items:flex-start}
+.habit-info{min-width:0}
+.habit-card .meta{display:flex;align-items:center;gap:6px;flex-wrap:wrap;row-gap:4px}
+.habit-actions{display:inline-flex;align-items:center;gap:4px;margin-left:auto}
+.habit-actions .makeup-btn{width:28px;height:28px;font-size:12px}
+.habit-actions .edit-btn,.habit-actions .del-btn{width:30px;height:30px;font-size:14px}
+.habit-card .check-btn{align-self:center}
+.habit-card .remark{margin-top:6px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.habit-card .cycle-previews{min-width:0;overflow-wrap:anywhere}
+
+@media (max-width:480px){
+  .habit-card{gap:10px;padding:12px}
+  .habit-card .icon{width:40px;height:40px;font-size:18px;border-radius:12px}
+  .habit-card .name{font-size:15px;line-height:1.4}
+  .habit-card .meta{font-size:11px}
+  .achievement-badge{font-size:10px;padding:1px 5px}
+  .habit-card .remark{font-size:11px;padding:3px 7px}
+  .habit-card .check-btn{width:42px;height:42px}
+}

@@ -76,7 +76,7 @@
 
     const LS_KEY = 'myCheckinApp_v10';
     // 单一版本号来源：诊断信息、备份 payload、sw.js 的 CACHE_NAME 都应对齐这里
-    const APP_VERSION = 'v120';
+    const APP_VERSION = 'v121';
     const CURRENT_SCHEMA_VERSION = 3;
     // 存储安全状态。必须在 `let data = loadData();` 之前初始化：
     // loadData / saveData / validateAndRepairData 都会用到它们，放在后面会踩暂时性死区（TDZ）直接报错。
@@ -6348,14 +6348,22 @@
       const fuelMeta = isFuel ? renderFuelMetaHtml(h) : '';
       const makeupBtn = isFuel ? '' : `<button class="makeup-btn" onclick="openMakeupModal('${moduleId}', ${h.id})" title="补卡">↩</button>`;
       const remark = h.remark || DAILY_HABIT_REMARKS[h.name] || '';
+      // 手机上原来一行塞了 图标+文字+打卡+补卡+编辑+删除，文字列被挤成 68px，
+      // 名称/奖杯/天数/备注只能各占一行，整张卡变成竖条。这里把次要操作收进 meta 行右侧。
       return `
         <div class="habit-card ${isDone ? 'done' : ''}" data-module="${moduleId}" data-id="${h.id}">
           <div class="icon">${h.icon}</div>
           <div class="habit-info" onclick="showCalendar('${moduleId}', ${h.id})" style="cursor:pointer">
-            <div class="name">${escapeHtml(h.name)} <span class="achievement-badges" data-habit="${h.id}">${renderHabitAchievementBadgesHtml(h)}</span></div>
+            <div class="name">${escapeHtml(h.name)}</div>
+            <div class="achievement-badges" data-habit="${h.id}">${renderHabitAchievementBadgesHtml(h)}</div>
             <div class="meta">
               <span>${h.records.length} 天已坚持</span>
               ${streak > 0 ? '<span>·</span><span class="streak">' + streak + ' 天</span>' : ''}
+              <span class="habit-actions" onclick="event.stopPropagation()">
+                ${makeupBtn}
+                <button class="edit-btn" onclick="openHabitEdit('${moduleId}', ${h.id})" title="编辑">✏️</button>
+                <button class="del-btn" onclick="deleteHabit('${moduleId}', ${h.id})" title="删除">×</button>
+              </span>
             </div>
             ${remark ? '<div class="remark">' + escapeHtml(remark) + '</div>' : ''}
             ${fuelMeta}
@@ -6363,9 +6371,6 @@
           <button class="check-btn ${isDone ? 'done' : ''}" data-module="${moduleId}" data-id="${h.id}" onclick="toggleCheck('${moduleId}', ${h.id})" title="${isFuel ? '记录加油' : '点击打卡'}">
             ${isDone ? '✓' : ''}
           </button>
-          ${makeupBtn}
-          <button class="edit-btn" onclick="openHabitEdit('${moduleId}', ${h.id})" title="编辑">✏️</button>
-          <button class="del-btn" onclick="deleteHabit('${moduleId}', ${h.id})" title="删除">×</button>
         </div>
       `;
     }
@@ -6395,11 +6400,15 @@
               ${escapeHtml(h.name)}
               <span class="cycle-badge ${stateClass}">今日${escapeHtml(state)}</span>
             </div>
-            <div class="meta">${previews.join(' · ')}</div>
+            <div class="meta">
+              <span class="cycle-previews">${previews.join(' · ')}</span>
+              <span class="habit-actions" onclick="event.stopPropagation()">
+                <button class="edit-btn" onclick="openHabitEdit('${moduleId}', ${h.id})" title="编辑">✏️</button>
+                <button class="del-btn" onclick="deleteHabit('${moduleId}', ${h.id})" title="删除">×</button>
+              </span>
+            </div>
           </div>
           ${checkBtn}
-          <button class="edit-btn" onclick="openHabitEdit('${moduleId}', ${h.id})" title="编辑">✏️</button>
-          <button class="del-btn" onclick="deleteHabit('${moduleId}', ${h.id})" title="删除">×</button>
         </div>
       `;
     }
@@ -6430,12 +6439,14 @@
             <div class="meta">
               <span>${h.records.length} 次已记录</span>
               ${!isDue ? '<span>·</span><span>下次 ' + nextStr + '（还有' + daysLeft + '天）</span>' : ''}
+              <span class="habit-actions" onclick="event.stopPropagation()">
+                <button class="edit-btn" onclick="openHabitEdit('${moduleId}', ${h.id})" title="编辑">✏️</button>
+                <button class="del-btn" onclick="deleteHabit('${moduleId}', ${h.id})" title="删除">×</button>
+              </span>
             </div>
             ${noteHtml}
           </div>
           ${btnHtml}
-          <button class="edit-btn" onclick="openHabitEdit('${moduleId}', ${h.id})" title="编辑">✏️</button>
-          <button class="del-btn" onclick="deleteHabit('${moduleId}', ${h.id})" title="删除">×</button>
         </div>
       `;
     }
