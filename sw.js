@@ -1,4 +1,4 @@
-const CACHE_NAME = 'growth-checkin-v121';
+const CACHE_NAME = 'growth-checkin-v122';
 const APP_SHELL = [
   './',
   './index.html',
@@ -98,9 +98,20 @@ function backgroundUpdate(request, response) {
 
 // ========== 按资源类型的精细化策略 ==========
 
-// 1. 导航请求 / HTML → Network First（保证最新）
+// 1. 导航请求 / HTML → 缓存优先（秒开），后台静默更新
+//    以前是 Network First：网络被墙/极慢时，每次打开都要等满 15 秒超时才回退缓存，
+//    再叠加下面 main.js 的 12 秒，开一次 App 要 27 秒。缓存命中的情况下没必要等网络。
 async function handleNavigate(request) {
-  const cached = await matchAnyCache(request, true);
+  const cached = await matchAnyCache(request, true)
+    || await matchAnyCache(new Request(absUrl('./index.html')), false)
+    || await matchAnyCache(new Request(absUrl('./')), false);
+
+  if (cached) {
+    // 后台悄悄拉一份新的存起来，下次打开用；不阻塞这次启动
+    fetch(request).then(res => { if (res && res.ok) backgroundUpdate(request, res); }).catch(() => {});
+    return cached;
+  }
+
   try {
     const networkRes = await withTimeout(fetch(request), TIMEOUT.navigate);
     if (networkRes && networkRes.ok) {
@@ -108,23 +119,26 @@ async function handleNavigate(request) {
       return networkRes;
     }
   } catch (e) {}
-  // 网络失败 → 回退缓存 → 再回退"正在更新"页 → 最后才是浏览器的错误页
-  const shell = cached
-    || await matchAnyCache(new Request(absUrl('./index.html')), false)
-    || await matchAnyCache(new Request(absUrl('./')), false);
-  if (shell) return shell;
+  // 没有缓存（首次安装 / 刚清过缓存）才走网络，失败再兜底
   const recovery = await matchAnyCache(new Request(absUrl('./recovery.html')), false);
   return recovery || Response.error();
 }
 
-// 2. 静态资源 → 代码文件网络优先，图片等缓存优先
-//    以前 main.js / app.css 是"缓存优先 + 后台更新"，于是发布新版本后
-//    手机上第一次打开跑的还是旧代码，要再刷新一次才更新，甚至出现新 HTML 配旧 JS。
+// 2. 静态资源 → 缓存优先，后台更新（代码文件也一样）
+//    原来 main.js / app.css 是"网络优先 + 12 秒超时"，慢网下每次开机都在等它下完。
 async function handleStatic(request) {
   const url = new URL(request.url);
   const isCode = /\.(js|css)$/.test(url.pathname);
 
   if (isCode) {
+    const cached = await matchAnyCache(request, false);
+    if (cached) {
+      // 先给缓存（毫秒级），同时后台取新版写回缓存
+      fetch(new Request(request, { cache: 'no-cache' }))
+        .then(res => { if (res && res.ok) backgroundUpdate(request, res); })
+        .catch(() => {});
+      return cached;
+    }
     try {
       const fresh = await withTimeout(fetch(new Request(request, { cache: 'no-cache' })), TIMEOUT.static);
       if (fresh && fresh.ok) {
@@ -132,8 +146,6 @@ async function handleStatic(request) {
         return fresh;
       }
     } catch (e) {}
-    const cached = await matchAnyCache(request, false);
-    if (cached) return cached;
     return Response.error();
   }
 
